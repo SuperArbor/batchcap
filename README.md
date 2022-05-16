@@ -16,6 +16,8 @@ ffmpeg should be installed. [Here](https://ffmpeg.org/download.html) is the link
 
 *-t / --tile*: Shape of the tile made up from the captured images.
 
+*-s / --seek*: Time of the first capture.
+
 ### Run the tool
 
 You can choose to run the tool with command or with script.
