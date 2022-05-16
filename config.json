@@ -1,6 +1,0 @@
-{
-    "log_path": "log/default.log",
-    "rotation": "16MB",
-    "encoding": "utf-8",
-    "retention": "10 days"
-}

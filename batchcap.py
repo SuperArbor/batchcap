@@ -2,11 +2,10 @@ import os, sys
 import ffmpeg
 import argparse
 
-from logger import initialize
 from loguru import logger
 from Tree import *
 from traceback import print_exc, format_exc
-import json
+from io import StringIO
 
 def get_video_info(file:str):
     probe = ffmpeg.probe(file)
@@ -37,9 +36,11 @@ def capture_file(file:str, args, output_rule=None):
     basename = os.path.basename(output_name)
     if not args.overwrite:
         if os.path.exists(output_name):
-            return basename
+            logger.info(f'{output_name} already exists and overwrite is set to false. Skipping this.')
+            return 
         
     try:
+        logger.info(f'Begin handling {file}.')
         (ffmpeg
             .input(file)
             .filter('select', f'not(mod(n, {interval}))')
@@ -48,6 +49,7 @@ def capture_file(file:str, args, output_rule=None):
             .output(output_name, vframes=1)
             .overwrite_output()
             .run(capture_stdout=True))
+        logger.info(f'Finished handling {file}.')
 
         return basename
     except Exception:
@@ -74,8 +76,8 @@ def capture_dir(dir:str, args, output_rule=None, tree=None):
             tree.mkdir(file)
             capture_dir(filename, args, output_rule, tree[file])
         elif is_video(file): 
-            tree.touch(output_rule(file))
-            capture_file(filename, args, output_rule)
+            if(capture_file(filename, args, output_rule)):
+                tree.touch(output_rule(file))
         else:
             continue
     return tree
@@ -84,23 +86,36 @@ def is_video(file:str) -> bool:
     return file.endswith(('mp4', 'mkv', 'avi', 'mov', 'wmv', 'm4v', 'flv', 'rmvb'))
 
 if __name__ == '__main__':
+    logger.add('cap_log.log',
+        rotation='16MB',
+        encoding='utf-8',
+        enqueue=True,
+        retention='10 days')
+    
     parser = argparse.ArgumentParser()
-    parser.add_argument('-d', '--directory', default=os.path.dirname(__file__))
-    parser.add_argument('-o', '--overwrite', default=False)
-    parser.add_argument('-w', '--width', default=360)
-    parser.add_argument('-t', '--tile', default='3x5')
+    parser.add_argument('-d', '--directory', type=str, default=os.path.dirname(__file__), help='Path of directory or file.')
+    # parser.add_argument('-d', '--directory', type=str, default=r'C:\Users\snrih\Desktop\test', help='Path of directory or file.')
+    parser.add_argument('-o', '--overwrite', default=False, action='store_true', help='Whether or not overwrite existing files.')
+    parser.add_argument('-w', '--width', type=int, default=360, help='Width of each image.')
+    parser.add_argument('-t', '--tile', type=str, default='3x5', help='Tile shaple of the screen shots.')
     args = parser.parse_args()
+    print(args)
     
     if args.directory:
         output = capture(args.directory, args=args)
     else:
         print('Input a valid file or directory for parameter.')  
     
-    config_path = 'config.json'
-    config_log = json.load(open(config_path, mode='r'))
-    initialize(config_log)
-    
-    logger.info(f'\n{output}')
+    buff = StringIO(str(output))
+    count = 0
+    while True:
+        line = buff.readline()
+        if line.startswith('-'):
+            count += 1
+        else:
+            break
+        
+    logger.info(f'\nCaptured: {count}\n{output}')
     
     
     
