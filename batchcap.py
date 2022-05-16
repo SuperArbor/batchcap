@@ -81,13 +81,12 @@ def capture_dir(dir:str, args, output_rule=None, tree=None):
     return tree
 
 def is_video(file:str) -> bool:
-    return file.endswith(('mp4', 'mkv', 'avi'))
+    return file.endswith(('mp4', 'mkv', 'avi', 'mov', 'wmv', 'm4v', 'flv', 'rmvb'))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    # parser.add_argument('-d', '--directory', default=os.path.dirname(__file__))
-    parser.add_argument('-d', '--directory', default=r"C:\Users\snrih\Desktop\test")
-    parser.add_argument('-o', '--overwrite', default=True)
+    parser.add_argument('-d', '--directory', default=os.path.dirname(__file__))
+    parser.add_argument('-o', '--overwrite', default=False)
     parser.add_argument('-w', '--width', default=360)
     parser.add_argument('-t', '--tile', default='3x5')
     args = parser.parse_args()
@@ -97,7 +96,7 @@ if __name__ == '__main__':
     else:
         print('Input a valid file or directory for parameter.')  
     
-    config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.json')
+    config_path = 'config.json'
     config_log = json.load(open(config_path, mode='r'))
     initialize(config_log)
     
