@@ -94,7 +94,6 @@ if __name__ == '__main__':
     
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--directory', type=str, default=os.path.dirname(__file__), help='Path of directory or file.')
-    # parser.add_argument('-d', '--directory', type=str, default=r'C:\Users\snrih\Desktop\test', help='Path of directory or file.')
     parser.add_argument('-o', '--overwrite', default=False, action='store_true', help='Whether or not overwrite existing files.')
     parser.add_argument('-w', '--width', type=int, default=360, help='Width of each image.')
     parser.add_argument('-t', '--tile', type=str, default='3x5', help='Tile shaple of the screen shots.')
