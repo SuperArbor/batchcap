@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 
 class NodeObject(ABC):
+    '''Base class for NodeFile and NodeDir.'''
     def __init__(self, id:str, dir, is_dir=False):
         self.id = id
         self.is_dir = is_dir
@@ -11,6 +12,7 @@ class NodeObject(ABC):
     
     
 class NodeFile(NodeObject):
+    '''Represents files.'''
     def __init__(self, id:str, dir) -> None:
         super().__init__(id, dir, is_dir=False)
     
@@ -18,6 +20,7 @@ class NodeFile(NodeObject):
         return self.id
     
 class NodeDir(NodeObject):
+    '''Represents directories.'''
     def __init__(self, id:str, dir):
         super().__init__(id, dir, is_dir=True)
         self.elements = {}
@@ -36,6 +39,7 @@ class NodeDir(NodeObject):
         return prnt
     
     def _list_tree(self, node:NodeObject, depth:int, prnt:str):
+        '''Get the representation string for the current directory.'''
         for id, n in node.get_elements():
             if not n.is_dir:
                 prnt += '  ' * depth + '-' + id + '\n'
@@ -46,16 +50,19 @@ class NodeDir(NodeObject):
         return prnt.strip()
 
     def touch(self, id:str):
+        '''Create a file under the current directory.'''
         file = NodeFile(id, self)
         self.elements.update({id:file})
         return file
     
     def mkdir(self, id:str):
+        '''Create a sub directory under the current directory.'''
         dir = NodeDir(id, self)
         self.elements.update({id:dir})
         return dir
 
     def concat(self, node):
+        '''Concatenate a node (a file or a directory) under the current directory.'''
         self.elements.update({node.id:node})
         return self
 

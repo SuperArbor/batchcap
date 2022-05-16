@@ -99,12 +99,13 @@ if __name__ == '__main__':
     parser.add_argument('-w', '--width', type=int, default=360, help='Width of each image.')
     parser.add_argument('-t', '--tile', type=str, default='3x5', help='Tile shaple of the screen shots.')
     args = parser.parse_args()
-    print(args)
+    logger.info(f'Current arguments: {args}')
     
     if args.directory:
         output = capture(args.directory, args=args)
     else:
-        print('Input a valid file or directory for parameter.')  
+        logger.error('Input a valid file or directory for parameter.')  
+        sys.exit(1)
     
     buff = StringIO(str(output))
     count = 0
