@@ -40,26 +40,20 @@ def capture_dir(dir:str, args, output_rule=None):
 def is_video(file:str) -> bool:
     return file.endswith(('mp4', 'mkv', 'avi'))
 
-if __name__ == "__main__":
+
+if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-d', '--directory', default='C:/Users/snrih/Desktop/test')
+    parser.add_argument('-d', '--directory', default=os.path.dirname(__file__))
     parser.add_argument('-f', '--file')
     parser.add_argument('-o', '--overwrite', default=False)
-    parser.add_argument('-w', '--width', default=480)
+    parser.add_argument('-w', '--width', default=360)
     parser.add_argument('-t', '--tile', default='3x3')
     args = parser.parse_args()
-    if not args.directory:
-        cwd = os.getcwd()
-    else:
-        cwd = os.getcwd()
-        cwd = os.path.abspath(os.path.join(cwd, args.directory))
     
     if args.directory:
         capture_dir(args.directory, args=args, output_rule=None)
     elif args.file:
         capture_file(args.file, args=args, output_rule=None)
     else:
-        print('Input a valid file or directory for parameter.')
-    
-    
+        print('Input a valid file or directory for parameter.')  
     
