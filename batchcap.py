@@ -83,7 +83,7 @@ def capture_dir(dir:str, args, output_rule=None, tree=None):
     return tree
 
 def is_video(file:str) -> bool:
-    return file.endswith(('mp4', 'mkv', 'avi', 'mov', 'wmv', 'm4v', 'flv', 'rmvb'))
+    return file.endswith(('.mp4', '.mkv', '.avi', '.mov', '.wmv', '.m4v', '.flv', '.rmvb'))
 
 if __name__ == '__main__':
     logger.add('cap_log.log',
