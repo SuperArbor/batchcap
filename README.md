@@ -8,4 +8,4 @@
 
 ### Capture a file
 
-"directory to python.exe" "directory to batchcap.py" -f "directory to folder of source file" -o true -w 360 -t 3x3
+"directory to python.exe" "directory to batchcap.py" -f "directory to source file" -o true -w 360 -t 3x3
