@@ -39,7 +39,7 @@ path_to_python path_to_batchcap.py -d path_to_folder_or_file -s 10 -o -w 360 -t 
 
 ```powershell
 # Gets the directory of the script
-$Path=$PWD.Path
+$Path=$PSScriptRoot
 $PathInfo=[System.Uri]$Path
 
 if($PathInfo.IsUnc){
