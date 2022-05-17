@@ -42,8 +42,8 @@ path_to_python path_to_batchcap.py -p path_to_folder_or_file -s 10 -o -w 360 -t 
 (1) Input the command below in a powershell script file (with extension ".ps1").
 
 ```powershell
-# $PSScriptRoot is the path of the script file. 2>&1 | %{ "$_" } is to mute NativeCommandError output.
-& path_to_python path_to_batchcap.py -p $PSScriptRoot -s 10 -o -w 360 -t 5x4 2>&1 | %{ "$_" }
+# $PSScriptRoot is the path of the script file. 2>&1 | ForEach-Object{ "$_" } is to mute NativeCommandError output.
+& path_to_python path_to_batchcap.py -p $PSScriptRoot -s 10 -o -w 360 -t 5x4 2>&1 | ForEach-Object{ "$_" }
 pause
 ```
 
