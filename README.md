@@ -1,5 +1,7 @@
 # Manual
 
+A convenient batch capture tool. Currently it only supports Windows.
+
 ## prerequisite
 
 ffmpeg should be installed. [Here](https://ffmpeg.org/download.html) is the link.
@@ -33,9 +35,10 @@ path_to_python path_to_batchcap.py -d path_to_folder_or_file -s 10 -o -w 360 -t 
 
 #### Run with script
 
-(1) Input the command above in a batch file.
+(1) Input the command above in a powershell script file (with extension ".ps1").
 
 ```powershell
+# Gets the directory of the script
 $Path=$PWD.Path
 $PathInfo=[System.Uri]$Path
 
@@ -58,4 +61,4 @@ pause
 
 (2) Copy the batch file to the directory of videos.
 
-(3) Run the batch file.
+(3) Run the batch file by double click the script file.
