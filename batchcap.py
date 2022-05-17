@@ -4,10 +4,9 @@ import argparse
 
 from loguru import logger
 from Tree import *
-from traceback import print_exc, format_exc
+from traceback import format_exc
 from io import StringIO
-from datetime import datetime, timedelta
-import subprocess
+from datetime import datetime
 
 def get_video_info(file:str):
     '''Returns basic information of a video.'''
@@ -113,7 +112,6 @@ def sort_tree(tree:NodeDir):
                 if isinstance(node, NodeDir):
                     # Leaf node of type NodeDir are empty folders, thus should be removed.
                     to_remove.append(id)
-                    print(f"remove: {id}")
             else:
                 sort_tree(tree[id])
 
