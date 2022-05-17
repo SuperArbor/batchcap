@@ -176,14 +176,16 @@ if __name__ == "__main__":
     filter = lambda n: n.get_data() != 'remove'
     print(f"Before modifying:")
     print(root.ls(path='', filter=filter))
+    print(f"cd to 'a/h'")
+    print(root.cd('a/h'))
     
+    print(f"rm a/h from {root}")
+    root.rm('a/h')
     print(f"After modifying:")
     print(root.ls(path='', filter=filter))
     
-    print(f"cd to 'a/h'")
-    print(root.cd('a/h'))
-    print(f"cd to 'c/e'")
+    print(f"cd to 'c/e' from {c}")
     print(c.cd('/c/e'))
-    print(f"ls to c")
+    print(f"ls from c")
     print(c.ls(path='', filter=filter))
     
