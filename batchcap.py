@@ -5,7 +5,7 @@ import argparse
 from loguru import logger
 from Tree import *
 from traceback import format_exc
-from io import StringIO
+from tqdm import tqdm
 from datetime import datetime
 
 def get_video_info(file:str):
@@ -40,7 +40,6 @@ def capture_file(file:str, args, output_rule=None):
         size = info['size'] / (1024 * 1024)
             
         output_name = output_rule(file)
-        basename = os.path.basename(output_name)
         if not args.overwrite:
             if os.path.exists(output_name):
                 logger.info(f'{output_name} already exists and overwrite is set to false. Skipping this.')
@@ -64,7 +63,7 @@ def capture_file(file:str, args, output_rule=None):
             .run(capture_stdout=True))
         end = datetime.now()
         logger.info(f'Finished capturing {file}. Time elapsed: {end-begin}.')
-        return basename
+        return output_name
     except Exception:
         logger.error(format_exc())
         logger.info(f'Failed to capture {file}. Time elapsed: {end-begin}.')
@@ -72,51 +71,51 @@ def capture_file(file:str, args, output_rule=None):
 
 def capture(path:str, args, output_rule=None):
     begin = datetime.now()
+    
     logger.info(f"Start task at {begin}.")
     if os.path.isdir(path):
-        output = capture_dir(path, args, output_rule)
+        tree_input = inspect_dir(path)
+        nodes = tree_input.walk(lambda n: (not n.is_dir()) and is_video(n.id))
+        paths = [node.abs_id for node in nodes]
+        logger.info("Jobs to be done:\n" + '\n'.join(paths))
+        output = []
+        for path in tqdm(paths):
+            res = capture_file(path, args, output_rule)
+            if res:
+                output.append(res)
     else:
         output = capture_file(path, args, output_rule)
+        
     end = datetime.now()
     logger.info(f"End task. Total time elapsed: {end-begin}")
     return output
-    
-def capture_dir(dir:str, args, output_rule=None, tree=None):
-    '''Captures the videos under the specified directory.'''
-    if not output_rule:
-        output_rule = default_output_rule
-        
+
+def inspect_dir(dir:str, tree:NodeDir=None) -> NodeDir:
     if tree == None:
         tree = NodeDir(dir, None)
         
     for file in os.listdir(dir):
-        filename = os.path.abspath(os.path.join(dir, file))
+        filename = dir + SEP + file
         if os.path.isdir(filename):
             tree.mkdir(file)
-            capture_dir(filename, args, output_rule, tree[file])
+            inspect_dir(filename, tree[file])
         elif is_video(file): 
-            if(capture_file(filename, args, output_rule)):
-                tree.touch(output_rule(file))
-        else:
-            continue
+            tree.touch(file)
+            
     return tree
 
-def sort_tree(tree:NodeDir, count:int=0):
+def sort_tree(tree:NodeDir):
     '''Remove unneeded branches in the tree.'''
     
     nodes = tree.walk()
-    
     resort = False
     for node in nodes:
         if node.is_leaf():
             if node.is_dir():
                 resort = True
                 node.pop()
-            else:
-                count += 1
     if resort:
-        sort_tree(tree, count)
-    return count
+        sort_tree(tree)
 
 def is_video(file:str) -> bool:
     return file.endswith(('.mp4', '.mkv', '.avi', '.mov', '.wmv', '.m4v', '.flv', '.rmvb'))
@@ -144,13 +143,15 @@ if __name__ == '__main__':
     if not os.path.exists(args.path):
         logger.error(f"Path {args.path} does not exsist.")
         sys.exit(1)
-        
+    
+    args.path = args.path.replace('\\', SEP)
     output = capture(args.path, args=args)
-    if isinstance(output, NodeDir):
-        count = sort_tree(output)
-        logger.info(f'\nCaptured: {count}\n{output.ls()}')
-    else:
-        logger.info(f'\nCaptured: 1\n{output}')
+    count = 1
+    if isinstance(output, list):
+        count = len(output)
+        output = '\n'.join(output)
+        
+    logger.info(f'\nCaptured: {count}\n{output}')
     
     
     
