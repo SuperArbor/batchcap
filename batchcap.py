@@ -42,16 +42,16 @@ def capture_file(file:str, args, output_rule=None):
         output_name = output_rule(file)
         if not args.overwrite:
             if os.path.exists(output_name):
-                logger.info(f'{output_name} already exists and overwrite is set to false. Skipping this.')
-                return None
+                logger.info(f'\n{output_name} already exists and overwrite is set to false. Skipping this.')
+                return 1
     except Exception:
-        logger.error(format_exc())
-        logger.info(f'Failed to get info of {file}.')
-        return None
+        logger.error(f'\n{format_exc()}')
+        logger.info(f'\nFailed to get info of {file}.')
+        return -1
         
     try:
         begin = datetime.now()
-        logger.info(f"Begin capturing {file}. Size: {size:.2f} MB.")
+        logger.info(f"\nBegin capturing {file}. Size: {size:.2f} MB.")
         (ffmpeg
             .input(file, ss=args.seek)
             .filter('select', f'not(mod(n, {interval}))')
@@ -62,32 +62,40 @@ def capture_file(file:str, args, output_rule=None):
             .overwrite_output()
             .run(capture_stdout=True))
         end = datetime.now()
-        logger.info(f'Finished capturing {file}. Time elapsed: {end-begin}.')
-        return output_name
+        logger.info(f'\nFinished capturing {file}. Time elapsed: {end-begin}.')
+        return 0
     except Exception:
-        logger.error(format_exc())
-        logger.info(f'Failed to capture {file}. Time elapsed: {end-begin}.')
-        return None
+        logger.error(f'\n{format_exc()}')
+        logger.info(f'\nFailed to capture {file}. Time elapsed: {end-begin}.')
+        return -2
 
 def capture(path:str, args, output_rule=None):
     begin = datetime.now()
     
-    logger.info(f"Start task at {begin}.")
+    logger.info(f"\nStart task at {begin}.")
     if os.path.isdir(path):
         tree_input = inspect_dir(path)
         nodes = tree_input.walk(lambda n: (not n.is_dir()) and is_video(n.id))
         paths = [node.abs_id for node in nodes]
-        logger.info("Jobs to be done:\n" + '\n'.join(paths))
-        output = []
+        logger.info("\nFiles to be captured:\n" + '\n'.join(paths))
+        output = {}
         for path in tqdm(paths):
             res = capture_file(path, args, output_rule)
-            if res:
-                output.append(res)
+            if res == 0:
+                output.update({path: 'succeeded'})
+            elif res == 1:
+                output.update({path: 'skipped'})
+            elif res == -1:
+                output.update({path: 'failed to probe'})
+            elif res == -2:
+                output.update({path: 'failed to capture'})
+            else:
+                output.update({path: 'unknown error'})
     else:
         output = capture_file(path, args, output_rule)
         
     end = datetime.now()
-    logger.info(f"End task. Total time elapsed: {end-begin}")
+    logger.info(f"\nEnd task. Total time elapsed: {end-begin}")
     return output
 
 def inspect_dir(dir:str, tree:NodeDir=None) -> NodeDir:
@@ -134,22 +142,22 @@ if __name__ == '__main__':
     parser.add_argument('-w', '--width', type=int, default=360, help='Width of each image.')
     parser.add_argument('-t', '--tile', type=str, default='3x5', help='Tile shaple of the screen shots.')
     args = parser.parse_args()
-    logger.info(f'Current arguments: {args}')
+    logger.info(f'\nCurrent arguments: {args}')
     
     if not args.path:
-        logger.error(f"Path is not specified.")
+        logger.error(f"\nPath is not specified.")
         sys.exit(1)
     
     if not os.path.exists(args.path):
-        logger.error(f"Path {args.path} does not exsist.")
+        logger.error(f"\nPath {args.path} does not exsist.")
         sys.exit(1)
     
     args.path = args.path.replace('\\', SEP)
     output = capture(args.path, args=args)
     count = 1
-    if isinstance(output, list):
+    if isinstance(output, dict):
         count = len(output)
-        output = '\n'.join(output)
+        output = '\n'.join([f'{result}:\t{file}' for file, result in output.items()])
         
     logger.info(f'\nCaptured: {count}\n{output}')
     
