@@ -6,9 +6,20 @@ class NodeObject(ABC):
         self.id = id
         self.is_dir = is_dir
         self.dir = dir
+        self.data = None
 
     def get_dir(self):
         return self.dir
+    
+    def set_data(self, data):
+        self.data = data
+        
+    def get_data(self):
+        return self.data
+    
+    @abstractmethod
+    def is_leaf(self) -> bool:
+        pass
     
     
 class NodeFile(NodeObject):
@@ -19,6 +30,9 @@ class NodeFile(NodeObject):
     def __str__(self) -> str:
         return self.id
     
+    def is_leaf(self) -> bool:
+        return True
+    
 class NodeDir(NodeObject):
     '''Represents directories.'''
     def __init__(self, id:str, dir):
@@ -28,17 +42,20 @@ class NodeDir(NodeObject):
     def __getitem__(self, key):
         return self.elements[key]
     
-    def is_root(self):
+    def is_root(self) -> bool:
         return self.dir is None
     
+    def is_leaf(self) -> bool:
+        return not self.elements.items()
+        
     def get_elements(self):
         return self.elements.items()
     
-    def list_tree(self):
+    def list_tree(self) -> str:
         prnt = self._list_tree(self, 0, '')
         return prnt
     
-    def _list_tree(self, node:NodeObject, depth:int, prnt:str):
+    def _list_tree(self, node:NodeObject, depth:int, prnt:str) -> str:
         '''Get the representation string for the current directory.'''
         for id, n in node.get_elements():
             if not n.is_dir:
@@ -61,7 +78,13 @@ class NodeDir(NodeObject):
         self.elements.update({id:dir})
         return dir
 
-    def concat(self, node):
+    def rm(self, id:str):
+        '''Remove a node from the current directory.'''
+        node = self.elements.get(id)
+        if node:
+            return self.elements.pop(id)
+    
+    def concat(self, node:NodeObject):
         '''Concatenate a node (a file or a directory) under the current directory.'''
         self.elements.update({node.id:node})
         return self
@@ -80,7 +103,4 @@ if __name__ == "__main__":
     e.touch('f')
     
     print(root)
-
-
-    
 
