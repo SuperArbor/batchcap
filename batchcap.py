@@ -116,10 +116,14 @@ if __name__ == '__main__':
     args = parser.parse_args()
     logger.info(f'Current arguments: {args}')
     
+    # if not args.path:
+    #     logger.info(f'No path specified. The current directory will be used as working directory.')
+    #     args.path = subprocess.check_output(['powershell.exe', '$PSScriptRoot'], stderr=subprocess.STDOUT).decode('utf-8').strip()
+    #     logger.info(f'Set working directory as: {args.path}')
+    
     if not args.path:
-        logger.info(f'No path specified. The current directory will be used as working directory.')
-        args.path = subprocess.check_output(['powershell.exe', '$PWD.Path'], stderr=subprocess.STDOUT).decode('utf-8').strip()
-        logger.info(f'Set working directory as: {args.path}')
+        logger.error(f"Path is not specified.")
+        sys.exit(1)
     
     if not os.path.exists(args.path):
         logger.error(f"Path {args.path} does not exsist.")

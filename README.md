@@ -14,11 +14,11 @@ ffmpeg should be installed. [Here](https://ffmpeg.org/download.html) is the link
 
 *-o / --overwrite*: Whether to overwrite the existing files. This option needs no parameters. To opt out overwriting, just ommit this argument.
 
-*-w / --width*: The width of each captured image.
+*-w / --width*: The width of each captured image (in pixels). Type integer.
 
-*-t / --tile*: Shape of the tile made up from the captured images.
+*-t / --tile*: Shape of the tile made up from the captured images. Type string with format 'cxr' where c stands for columns and r stands for rows.
 
-*-s / --seek*: Time of the first capture.
+*-s / --seek*: Time of the first capture (in seconds). Type float.
 
 ### Run the tool
 
@@ -29,7 +29,11 @@ You can choose to run the tool with command or with script.
 Run the following line in shell.
 
 ```powershell
-# This command captures screenshot(s) of path_to_folder_or_file (or the videos under the folder). The screenshot is made up of 20 captured images with shape 5x4. The height of each image is 360 pixels (the ratio is remained the same as the video).
+# This command captures screenshot(s) of path_to_folder_or_file (or the videos under the folder).
+# The screenshot is made up of 20 captured images with 5 columns and 4 rows.
+# The height of each image is 360 pixels (the ratio is remained the same as the video).
+# The capture begins at second 10.0 in the video.
+# Overwrite existing files with the same file name with the output files.
 path_to_python path_to_batchcap.py -d path_to_folder_or_file -s 10 -o -w 360 -t 5x4
 ```
 
@@ -46,7 +50,6 @@ if($PathInfo.IsUnc){
     # pushd is for UNC drive. This command pushes the current directory of the batch file to a virtual drive.
     pushd $Path
     
-    # If -d is ommited. The program uses the directory of the current batch file as working directory.
     # 2>&1 | %{ "$_" } is to mute NativeCommandError output.
     & path_to_python path_to_batchcap.py -s 10 -o -w 360 -t 5x4 2>&1 | %{ "$_" }
 
