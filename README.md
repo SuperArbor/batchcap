@@ -48,17 +48,17 @@ $PathInfo=[System.Uri]$Path
 
 if($PathInfo.IsUnc){
     # pushd is for UNC drive. This command pushes the current directory of the batch file to a virtual drive.
-    pushd $Path
+    Push-Location $Path
     
     # 2>&1 | %{ "$_" } is to mute NativeCommandError output.
-    & path_to_python path_to_batchcap.py -s 10 -o -w 360 -t 5x4 2>&1 | %{ "$_" }
+    & path_to_python path_to_batchcap.py -p $PSScriptRoot -s 10 -o -w 360 -t 5x4 2>&1 | %{ "$_" }
 
     # Remember to pop the virtual drive before exiting.
-    popd
+    Pop-Location
 }
 else {
     # $Path is Local Path
-    & path_to_python path_to_batchcap.py -s 10 -o -w 360 -t 5x4 2>&1 | %{ "$_" }
+    & path_to_python path_to_batchcap.py -p $PSScriptRoot -s 10 -o -w 360 -t 5x4 2>&1 | %{ "$_" }
 }
 pause
 ```
