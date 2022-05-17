@@ -47,14 +47,15 @@ if($PathInfo.IsUnc){
     pushd $Path
     
     # If -d is ommited. The program uses the directory of the current batch file as working directory.
-    & path_to_python path_to_batchcap.py -s 10 -o -w 360 -t 5x4 
+    # 2>&1 | %{ "$_" } is to mute NativeCommandError output.
+    & path_to_python path_to_batchcap.py -s 10 -o -w 360 -t 5x4 2>&1 | %{ "$_" }
 
     # Remember to pop the virtual drive before exiting.
     popd
 }
 else {
     # $Path is Local Path
-    & path_to_python path_to_batchcap.py -s 10 -o -w 360 -t 5x4 
+    & path_to_python path_to_batchcap.py -s 10 -o -w 360 -t 5x4 2>&1 | %{ "$_" }
 }
 pause
 ```
