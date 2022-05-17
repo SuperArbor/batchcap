@@ -101,26 +101,23 @@ def capture_dir(dir:str, args, output_rule=None, tree=None):
             continue
     return tree
 
-def sort_tree(tree:NodeDir):
+def sort_tree(tree:NodeDir, count:int=0):
     '''Remove unneeded branches in the tree.'''
-    while(True):
-        to_remove = []
-        for id, node in tree.get_elements():
-            # Mark the nodes to be removed, and remove them in another loop to avoid 
-            # RuntimeError: dictionary changed size during iteration.
-            if node.is_leaf() and not node in to_remove:
-                if isinstance(node, NodeDir):
-                    # Leaf node of type NodeDir are empty folders, thus should be removed.
-                    to_remove.append(id)
+    
+    nodes = tree.walk()
+    
+    resort = False
+    for node in nodes:
+        if node.is_leaf():
+            if node.is_dir():
+                resort = True
+                node.pop()
             else:
-                sort_tree(tree[id])
+                count += 1
+    if resort:
+        sort_tree(tree, count)
+    return count
 
-        if to_remove:
-            for id in to_remove:
-                tree.rm(id)
-        else:
-            break
-                    
 def is_video(file:str) -> bool:
     return file.endswith(('.mp4', '.mkv', '.avi', '.mov', '.wmv', '.m4v', '.flv', '.rmvb'))
 
@@ -133,7 +130,7 @@ if __name__ == '__main__':
     
     parser = argparse.ArgumentParser()
     parser.add_argument('-p', '--path', type=str, help='Path of directory or file.', required=False)
-    parser.add_argument('-o', '--overwrite', action='store_false', help='Whether or not overwrite existing files.')
+    parser.add_argument('-o', '--overwrite', action='store_true', help='Whether or not overwrite existing files.')
     parser.add_argument('-s', '--seek', type=float, default=0, help='Time of the first capture.')
     parser.add_argument('-w', '--width', type=int, default=360, help='Width of each image.')
     parser.add_argument('-t', '--tile', type=str, default='3x5', help='Tile shaple of the screen shots.')
@@ -150,20 +147,10 @@ if __name__ == '__main__':
         
     output = capture(args.path, args=args)
     if isinstance(output, NodeDir):
-        sort_tree(output)
-    
-    # Counts the screenshots generated.
-    buff = StringIO(str(output))
-    count = 0
-    while True:
-        line = buff.readline()
-        if line:
-            if line.strip().startswith('-'):
-                count += 1
-        else:
-            break
-        
-    logger.info(f'\nCaptured: {count}\n{output}')
+        count = sort_tree(output)
+        logger.info(f'\nCaptured: {count}\n{output.ls()}')
+    else:
+        logger.info(f'\nCaptured: 1\n{output}')
     
     
     
