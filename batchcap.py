@@ -10,7 +10,6 @@ from datetime import datetime, timedelta
 import subprocess
 
 def get_video_info(file:str):
-    logger.info(f'Getting info from file {file}')
     probe = ffmpeg.probe(file)
     video_info = next(s for s in probe['streams'] if s['codec_type'] == 'video')
     avg_frame_rate = video_info['avg_frame_rate']
@@ -31,22 +30,27 @@ def capture_file(file:str, args, output_rule=None):
     if not output_rule:
         output_rule = default_output_rule
     
-    info = get_video_info(file)
-    total = info['duration'] * info['avg_frame_rate']
-    r, c = args.tile.split('x')
-    interval = total // (int(r) * int(c))
-    size = info['size'] / (1024 * 1024)
-        
-    output_name = output_rule(file)
-    basename = os.path.basename(output_name)
-    if not args.overwrite:
-        if os.path.exists(output_name):
-            logger.info(f'{output_name} already exists and overwrite is set to false. Skipping this.')
-            return 
+    try:
+        info = get_video_info(file)
+        total = info['duration'] * info['avg_frame_rate']
+        r, c = args.tile.split('x')
+        interval = total // (int(r) * int(c))
+        size = info['size'] / (1024 * 1024)
+            
+        output_name = output_rule(file)
+        basename = os.path.basename(output_name)
+        if not args.overwrite:
+            if os.path.exists(output_name):
+                logger.info(f'{output_name} already exists and overwrite is set to false. Skipping this.')
+                return
+    except Exception:
+        logger.error(format_exc())
+        logger.info(f'Failed to get info of {file}.')
+        return None
         
     try:
         begin = datetime.now()
-        logger.info(f"Begin handling {file}. Size: {size:.2f} MB.")
+        logger.info(f"Begin capturing {file}. Size: {size:.2f} MB.")
         (ffmpeg
             .input(file, ss=args.seek)
             .filter('select', f'not(mod(n, {interval}))')
@@ -56,11 +60,11 @@ def capture_file(file:str, args, output_rule=None):
             .overwrite_output()
             .run(capture_stdout=True))
         end = datetime.now()
-        logger.info(f'Finished handling {file}. Time elapsed: {end-begin}.')
-
+        logger.info(f'Finished capturing {file}. Time elapsed: {end-begin}.')
         return basename
     except Exception:
         logger.error(format_exc())
+        logger.info(f'Failed to capture {file}. Time elapsed: {end-begin}.')
         return None
 
 def capture(path:str, args, output_rule=None):
@@ -104,7 +108,7 @@ if __name__ == '__main__':
         retention='10 days')
     
     parser = argparse.ArgumentParser()
-    parser.add_argument('-d', '--directory', type=str, help='Path of directory or file.', required=False)
+    parser.add_argument('-p', '--path', type=str, help='Path of directory or file.', required=False)
     parser.add_argument('-o', '--overwrite', action='store_true', help='Whether or not overwrite existing files.')
     parser.add_argument('-s', '--seek', type=float, default=0, help='Time of the first capture.')
     parser.add_argument('-w', '--width', type=int, default=360, help='Width of each image.')
@@ -112,17 +116,23 @@ if __name__ == '__main__':
     args = parser.parse_args()
     logger.info(f'Current arguments: {args}')
     
-    if not args.directory:
-        args.directory = subprocess.check_output(['powershell.exe', '$PWD.Path'], stderr=subprocess.STDOUT).decode('utf-8').strip()
-        logger.info(f'Set directory as: {args.directory}')
+    if not args.path:
+        logger.info(f'No path specified. The current directory will be used as working directory.')
+        args.path = subprocess.check_output(['powershell.exe', '$PWD.Path'], stderr=subprocess.STDOUT).decode('utf-8').strip()
+        logger.info(f'Set working directory as: {args.path}')
+    
+    if not os.path.exists(args.path):
+        logger.error(f"Path {args.path} does not exsist.")
+        sys.exit(1)
         
-    output = capture(args.directory, args=args)
+    output = capture(args.path, args=args)
     buff = StringIO(str(output))
     count = 0
     while True:
         line = buff.readline()
-        if line.startswith('-'):
-            count += 1
+        if line:
+            if line.strip().startswith('-'):
+                count += 1
         else:
             break
         
