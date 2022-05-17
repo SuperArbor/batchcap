@@ -45,7 +45,7 @@ def capture_file(file:str, args, output_rule=None):
         if not args.overwrite:
             if os.path.exists(output_name):
                 logger.info(f'{output_name} already exists and overwrite is set to false. Skipping this.')
-                return
+                return None
     except Exception:
         logger.error(format_exc())
         logger.info(f'Failed to get info of {file}.')
@@ -102,6 +102,27 @@ def capture_dir(dir:str, args, output_rule=None, tree=None):
             continue
     return tree
 
+def sort_tree(tree:NodeDir):
+    '''Remove unneeded branches in the tree.'''
+    while(True):
+        to_remove = []
+        for id, node in tree.get_elements():
+            # Mark the nodes to be removed, and remove them in another loop to avoid 
+            # RuntimeError: dictionary changed size during iteration.
+            if node.is_leaf() and not node in to_remove:
+                if isinstance(node, NodeDir):
+                    # Leaf node of type NodeDir are empty folders, thus should be removed.
+                    to_remove.append(id)
+                    print(f"remove: {id}")
+            else:
+                sort_tree(tree[id])
+
+        if to_remove:
+            for id in to_remove:
+                tree.rm(id)
+        else:
+            break
+                    
 def is_video(file:str) -> bool:
     return file.endswith(('.mp4', '.mkv', '.avi', '.mov', '.wmv', '.m4v', '.flv', '.rmvb'))
 
@@ -114,17 +135,12 @@ if __name__ == '__main__':
     
     parser = argparse.ArgumentParser()
     parser.add_argument('-p', '--path', type=str, help='Path of directory or file.', required=False)
-    parser.add_argument('-o', '--overwrite', action='store_true', help='Whether or not overwrite existing files.')
+    parser.add_argument('-o', '--overwrite', action='store_false', help='Whether or not overwrite existing files.')
     parser.add_argument('-s', '--seek', type=float, default=0, help='Time of the first capture.')
     parser.add_argument('-w', '--width', type=int, default=360, help='Width of each image.')
     parser.add_argument('-t', '--tile', type=str, default='3x5', help='Tile shaple of the screen shots.')
     args = parser.parse_args()
     logger.info(f'Current arguments: {args}')
-    
-    # if not args.path:
-    #     logger.info(f'No path specified. The current directory will be used as working directory.')
-    #     args.path = subprocess.check_output(['powershell.exe', '$PSScriptRoot'], stderr=subprocess.STDOUT).decode('utf-8').strip()
-    #     logger.info(f'Set working directory as: {args.path}')
     
     if not args.path:
         logger.error(f"Path is not specified.")
@@ -135,6 +151,8 @@ if __name__ == '__main__':
         sys.exit(1)
         
     output = capture(args.path, args=args)
+    if isinstance(output, NodeDir):
+        sort_tree(output)
     
     # Counts the screenshots generated.
     buff = StringIO(str(output))
