@@ -1,6 +1,7 @@
 __pycache__
 *.sh
 *.bat
+*.ps1
 tests.py
 *.json
 *.log
