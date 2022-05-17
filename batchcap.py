@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 import subprocess
 
 def get_video_info(file:str):
+    '''Returns basic information of a video.'''
     probe = ffmpeg.probe(file)
     video_info = next(s for s in probe['streams'] if s['codec_type'] == 'video')
     avg_frame_rate = video_info['avg_frame_rate']
@@ -23,17 +24,19 @@ def get_video_info(file:str):
     return {'avg_frame_rate': avg_frame_rate, 'duration': duration, 'size': size}
 
 def default_output_rule(input:str):
+    '''Defines the format of output screenshots according to the input video.'''
     filename, _ = os.path.splitext(input)
     return f'{filename}_cap.png'
 
 def capture_file(file:str, args, output_rule=None):
+    '''Captures a video according to arguments.'''
     if not output_rule:
         output_rule = default_output_rule
     
     try:
         info = get_video_info(file)
         total = info['duration'] * info['avg_frame_rate']
-        r, c = args.tile.split('x')
+        c, r = args.tile.split('x')
         interval = total // (int(r) * int(c))
         size = info['size'] / (1024 * 1024)
             
@@ -56,6 +59,7 @@ def capture_file(file:str, args, output_rule=None):
             .filter('select', f'not(mod(n, {interval}))')
             .filter('scale', args.width, -1)
             .filter('tile', args.tile)
+            # **{'loglevel': 'error'} is for less output
             .output(output_name, vframes=1, **{'loglevel': 'error'})
             .overwrite_output()
             .run(capture_stdout=True))
@@ -79,6 +83,7 @@ def capture(path:str, args, output_rule=None):
     return output
     
 def capture_dir(dir:str, args, output_rule=None, tree=None):
+    '''Captures the videos under the specified directory.'''
     if not output_rule:
         output_rule = default_output_rule
         
@@ -130,6 +135,8 @@ if __name__ == '__main__':
         sys.exit(1)
         
     output = capture(args.path, args=args)
+    
+    # Counts the screenshots generated.
     buff = StringIO(str(output))
     count = 0
     while True:
