@@ -1,14 +1,24 @@
 # Manual
 
-A convenient batch capture tool. Currently it only supports Windows.
+A convenient batch capture tool for both Windows and Linux.
 
 ## prerequisite
 
-ffmpeg should be installed. [Here](https://ffmpeg.org/download.html) is the link.
+ffmpeg should be installed.
+
+For windows, [Here](https://ffmpeg.org/download.html) is the download link.
+
+For Linux, simply run
+
+```bash
+sudo apt install ffmpeg
+```
 
 ## Usage
 
 ### Arguments
+
+The arguments below are used to specify the input and output behaviors.
 
 *-p / --path*: Path of a folder or path of a video file. It specifies the video(s) to be captured.
 
@@ -22,11 +32,11 @@ ffmpeg should be installed. [Here](https://ffmpeg.org/download.html) is the link
 
 ### Run the tool
 
-You can choose to run the tool with command or with script.
+You can choose to run the tool with command or with script. Usually when there is only one video to be captured, running with command is more handy, otherwise running with a script is more convenient.
 
 #### Run with command
 
-Run the following line in shell.
+Run the following line in powershell (Windows) or bash (Linux).
 
 ```powershell
 # This command captures screenshot(s) of path_to_folder_or_file (or the videos under the folder).
@@ -39,14 +49,25 @@ path_to_python path_to_batchcap.py -p path_to_folder_or_file -s 10 -o -w 360 -t 
 
 #### Run with script
 
-(1) Input the command below in a powershell script file (with extension ".ps1").
+To handle a batch of videos, especially those under a specific directory, running with script is recommended. The idea is:
+
+(1) put the script file under the corresponding folder;
+
+(2) run the script.
+
+In Windows, use a powershell script (with extension ".ps1").
 
 ```powershell
 # $PSScriptRoot is the path of the script file. 2>&1 | ForEach-Object{ "$_" } is to mute NativeCommandError output.
 & path_to_python path_to_batchcap.py -p $PSScriptRoot -s 10 -o -w 360 -t 5x4 2>&1 | ForEach-Object{ "$_" }
+
 pause
 ```
 
-(2) Copy the batch file to the directory of videos.
+In Linux, use a bash script (with extension ".sh").
 
-(3) Run the batch file by double click the script file.
+```bash
+#!/bin/bash
+
+path_to_python path_to_batchcap.py -p $(dirname "$BASH_SOURCE") -s 10 -o -w 360 -t 5x4
+```
