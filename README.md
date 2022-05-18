@@ -58,8 +58,8 @@ To handle a batch of videos, especially those under a specific directory, runnin
 In Windows, use a powershell script (with extension ".ps1").
 
 ```powershell
-# $PSScriptRoot is the path of the script file. 2>&1 | ForEach-Object{ "$_" } is to mute NativeCommandError output.
-& path_to_python path_to_batchcap.py -p $PSScriptRoot -s 10 -o -w 360 -t 5x4 2>&1 | ForEach-Object{ "$_" }
+# $PSScriptRoot is the path of the script file. 2>&1 | ForEach-Object{"$_"} is to mute NativeCommandError output.
+& path_to_python path_to_batchcap.py -p $PSScriptRoot -s 10 -o -w 360 -t 5x4 2>&1 | ForEach-Object{"$_"}
 
 pause
 ```
