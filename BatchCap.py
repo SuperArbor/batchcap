@@ -150,7 +150,7 @@ if __name__ == '__main__':
         sys.exit(1)
     
     args.path = args.path.replace('\\', SEP)
-    output = capture(args.path, args=args)
+    output = list(capture(args.path, args=args))
     count = 0
     for file, result in output:
         if result == 'succeeded':
