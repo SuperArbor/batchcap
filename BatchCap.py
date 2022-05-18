@@ -8,8 +8,12 @@ from traceback import format_exc
 from tqdm import tqdm
 from datetime import datetime
 
-def get_video_info(file:str):
+NL = '\n'
+
+def probe_file(file:str):
     '''Returns basic information of a video.'''
+    if not os.path.isfile(file):
+        raise FileNotFoundError(f"{file}")
     probe = ffmpeg.probe(file)
     video_info = next(s for s in probe['streams'] if s['codec_type'] == 'video')
     avg_frame_rate = video_info['avg_frame_rate']
@@ -29,11 +33,16 @@ def default_output_rule(input:str):
 
 def capture_file(file:str, args, output_rule=None):
     '''Captures a video according to arguments.'''
+    
+    if not os.path.isfile(file):
+        return file, 'invalid file path' 
+    
     if not output_rule:
         output_rule = default_output_rule
     
     try:
-        info = get_video_info(file)
+        logger.info(f'{NL}Probing file {file}.')
+        info = probe_file(file)
         total = info['duration'] * info['avg_frame_rate']
         c, r = args.tile.split('x')
         interval = total // (int(r) * int(c))
@@ -42,16 +51,16 @@ def capture_file(file:str, args, output_rule=None):
         output_name = output_rule(file)
         if not args.overwrite:
             if os.path.exists(output_name):
-                logger.info(f'\n{output_name} already exists and overwrite is set to false. Skipping this.')
-                return 1
+                logger.info(f'{NL}{output_name} already exists and overwrite is set to false. Skipping this.{NL}')
+                return file, 'skipped'
     except Exception:
-        logger.error(f'\n{format_exc()}')
-        logger.info(f'\nFailed to get info of {file}.')
-        return -1
+        logger.error(f'{NL}{format_exc()}')
+        logger.info(f'{NL}Failed to get info of {file}.{NL}')
+        return file, 'failed to probe'
         
     try:
         begin = datetime.now()
-        logger.info(f"\nBegin capturing {file}. Size: {size:.2f} MB.")
+        logger.info(f'{NL}Begin capturing {file}. Size: {size:.2f} MB.')
         (ffmpeg
             .input(file, ss=args.seek)
             .filter('select', f'not(mod(n, {interval}))')
@@ -62,41 +71,29 @@ def capture_file(file:str, args, output_rule=None):
             .overwrite_output()
             .run(capture_stdout=True))
         end = datetime.now()
-        logger.info(f'\nFinished capturing {file}. Time elapsed: {end-begin}.')
-        return 0
+        logger.info(f'{NL}Finished capturing {file}. Time elapsed: {end-begin}.{NL}')
+        return file, 'succeeded'
     except Exception:
-        logger.error(f'\n{format_exc()}')
-        logger.info(f'\nFailed to capture {file}. Time elapsed: {end-begin}.')
-        return -2
+        logger.error(f'{NL}{format_exc()}')
+        logger.info(f'{NL}Failed to capture {file}. Time elapsed: {end-begin}.{NL}')
+        return file, 'failed to capture'
 
-def capture(path:str, args, output_rule=None):
+def capture(file:str, args, output_rule=None):
     begin = datetime.now()
     
-    logger.info(f"\nStart task at {begin}.")
-    if os.path.isdir(path):
-        tree_input = inspect_dir(path)
+    logger.info(f'{NL}Start task at {begin}.')
+    if os.path.isdir(file):
+        tree_input = inspect_dir(file)
         nodes = tree_input.walk(lambda n: (not n.is_dir()) and is_video(n.id))
         paths = [node.abs_id for node in nodes]
-        logger.info("\nFiles to be captured:\n" + '\n'.join(paths))
-        output = {}
-        for path in tqdm(paths):
-            res = capture_file(path, args, output_rule)
-            if res == 0:
-                output.update({path: 'succeeded'})
-            elif res == 1:
-                output.update({path: 'skipped'})
-            elif res == -1:
-                output.update({path: 'failed to probe'})
-            elif res == -2:
-                output.update({path: 'failed to capture'})
-            else:
-                output.update({path: 'unknown error'})
+        logger.info(f'{NL}Files to be captured:{NL}' + NL.join(paths) + NL)
+        for file in tqdm(paths):
+            yield capture_file(file, args, output_rule)
     else:
-        output = capture_file(path, args, output_rule)
+        yield capture_file(file, args, output_rule)
         
     end = datetime.now()
-    logger.info(f"\nEnd task. Total time elapsed: {end-begin}")
-    return output
+    logger.info(f'{NL}End task. Total time elapsed: {end-begin}.{NL}')
 
 def inspect_dir(dir:str, tree:NodeDir=None) -> NodeDir:
     if tree == None:
@@ -142,24 +139,25 @@ if __name__ == '__main__':
     parser.add_argument('-w', '--width', type=int, default=360, help='Width of each image.')
     parser.add_argument('-t', '--tile', type=str, default='3x5', help='Tile shaple of the screen shots.')
     args = parser.parse_args()
-    logger.info(f'\nCurrent arguments: {args}')
+    logger.info(f'{NL}Current arguments: {args}{NL}')
     
     if not args.path:
-        logger.error(f"\nPath is not specified.")
+        logger.error(f"{NL}Path is not specified.{NL}")
         sys.exit(1)
     
     if not os.path.exists(args.path):
-        logger.error(f"\nPath {args.path} does not exsist.")
+        logger.error(f'{NL}Path {args.path} does not exsist.{NL}')
         sys.exit(1)
     
     args.path = args.path.replace('\\', SEP)
     output = capture(args.path, args=args)
-    count = 1
-    if isinstance(output, dict):
-        count = len(output)
-        output = '\n'.join([f'{result}:\t{file}' for file, result in output.items()])
-        
-    logger.info(f'\nCaptured: {count}\n{output}')
+    count = 0
+    for file, result in output:
+        if result == 'succeeded':
+            count += 1
+    output = NL.join([f'{result}:\t{file}' for file, result in output])
+    
+    logger.info(f'{NL}Captured: {count}{NL}{output}{NL}')
     
     
     
