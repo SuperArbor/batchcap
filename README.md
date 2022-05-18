@@ -2,7 +2,7 @@
 
 A convenient batch capture tool for both Windows and Linux.
 
-## prerequisite
+## Prerequisites
 
 ffmpeg should be installed.
 
