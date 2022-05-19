@@ -51,11 +51,11 @@ def capture_file(file:str, args, output_rule=None):
         output_name = output_rule(file)
         if not args.overwrite:
             if os.path.exists(output_name):
-                logger.info(f'{output_name} already exists and overwrite is set to false. Skipping this.{NL}')
+                logger.info(f'{output_name} already exists and overwrite is set to false. Skipping this.')
                 return file, 'skipped'
     except Exception:
         logger.error(format_exc())
-        logger.info(f'Failed to get info of {file}.{NL}')
+        logger.info(f'Failed to get info of {file}.')
         return file, 'failed to probe'
         
     try:
@@ -72,29 +72,29 @@ def capture_file(file:str, args, output_rule=None):
             .overwrite_output()
             .run(capture_stdout=True))
         end = datetime.now()
-        logger.info(f'Finished capturing {file}. Time elapsed: {end-begin}.{NL}')
+        logger.info(f'Finished capturing {file}. Time elapsed: {end-begin}.')
         return file, 'succeeded'
     except Exception:
         logger.error(format_exc())
-        logger.info(f'Failed to capture {file}. Time elapsed: {end-begin}.{NL}')
+        logger.info(f'Failed to capture {file}. Time elapsed: {end-begin}.')
         return file, 'failed to capture'
 
 def capture(file:str, args, output_rule=None):
     begin = datetime.now()
     
-    logger.info(f'Start task at {begin}.{NL}')
+    logger.info(f'Start task at {begin}.')
     if os.path.isdir(file):
         tree_input = inspect_dir(file)
         nodes = tree_input.walk(lambda n: (not n.is_dir()) and is_video(n.id))
         paths = [node.abs_id for node in nodes]
-        logger.info(f'Files to be captured:' + NL + NL.join(paths) + NL)
+        logger.info(f'Files to be captured:' + NL + NL.join(paths))
         for file in tqdm(paths):
             yield capture_file(file, args, output_rule)
     else:
         yield capture_file(file, args, output_rule)
         
     end = datetime.now()
-    logger.info(f'End task. Total time elapsed: {end-begin}.{NL}')
+    logger.info(f'End task. Total time elapsed: {end-begin}.')
 
 def inspect_dir(dir:str, tree:NodeDir=None) -> NodeDir:
     if tree == None:
@@ -128,7 +128,7 @@ def is_video(file:str) -> bool:
 
 if __name__ == '__main__':
     log_file = os.path.join(os.path.dirname(__file__), 'cap_log.log')
-    log_format = "\n[<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green>] | <level>{level: <8}</level>\n <level>{message}</level>"
+    log_format = "\n[<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green>] | <level>{level: <8}</level>\n <level>{message}</level>\n"
     logger.configure(
         handlers=[
             dict(sink=sys.stderr, format=log_format),
@@ -142,10 +142,10 @@ if __name__ == '__main__':
     parser.add_argument('-w', '--width', type=int, default=360, help='Width of each image.')
     parser.add_argument('-t', '--tile', type=str, default='5x4', help='Tile shaple of the screen shots.')
     args = parser.parse_args()
-    logger.info(f'Current arguments: {args}{NL}')
+    logger.info(f'Current arguments: {args}')
     
     if not os.path.exists(args.path):
-        logger.error(f'Path {args.path} does not exsist.{NL}')
+        logger.error(f'Path {args.path} does not exsist.')
         sys.exit(1)
     
     args.path = args.path.replace('\\', SEP)
@@ -156,7 +156,7 @@ if __name__ == '__main__':
             count += 1
     output = NL.join([f'{result}:\t{file}' for file, result in output])
     
-    logger.info(f'Captured: {count}{NL}{output}{NL}')
+    logger.info(f'Captured: {count}{NL}{output}')
     
     
     
