@@ -128,8 +128,13 @@ def is_video(file:str) -> bool:
 
 if __name__ == '__main__':
     log_file = os.path.join(os.path.dirname(__file__), 'cap_log.log')
-    log_format_console = "\n<level>{message}</level>"
-    log_format_file = "[<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green>] | <level>{level: <8}</level>\n <level>{message}</level>\n"
+    log_format_console = "\n<level>{message}</level>\n"
+    log_format_file = (
+        "[<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green>] | "
+        "<level>{level: <8}</level> | "
+        "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan>\n"
+        " <level>{message}</level>\n"
+        )
     logger.configure(
         handlers=[
             dict(sink=sys.stderr, format=log_format_console),
