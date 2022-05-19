@@ -134,17 +134,13 @@ if __name__ == '__main__':
         retention='10 days')
     
     parser = argparse.ArgumentParser()
-    parser.add_argument('-p', '--path', type=str, help='Path of directory or file.', required=False)
+    parser.add_argument('-p', '--path', type=str, default=os.path.dirname(__file__), help='Path of directory or file.')
     parser.add_argument('-o', '--overwrite', action='store_true', help='Whether or not overwrite existing files.')
     parser.add_argument('-s', '--seek', type=float, default=0, help='Time of the first capture.')
     parser.add_argument('-w', '--width', type=int, default=360, help='Width of each image.')
-    parser.add_argument('-t', '--tile', type=str, default='3x5', help='Tile shaple of the screen shots.')
+    parser.add_argument('-t', '--tile', type=str, default='5x4', help='Tile shaple of the screen shots.')
     args = parser.parse_args()
     logger.info(f'{NL}Current arguments: {args}{NL}')
-    
-    if not args.path:
-        logger.error(f"{NL}Path is not specified.{NL}")
-        sys.exit(1)
     
     if not os.path.exists(args.path):
         logger.error(f'{NL}Path {args.path} does not exsist.{NL}')
