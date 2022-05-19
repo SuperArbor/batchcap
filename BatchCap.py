@@ -128,19 +128,20 @@ def is_video(file:str) -> bool:
 
 if __name__ == '__main__':
     log_file = os.path.join(os.path.dirname(__file__), 'cap_log.log')
-    log_format = "\n[<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green>] | <level>{level: <8}</level>\n <level>{message}</level>\n"
+    log_format_console = "\n<level>{message}</level>"
+    log_format_file = "[<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green>] | <level>{level: <8}</level>\n <level>{message}</level>\n"
     logger.configure(
         handlers=[
-            dict(sink=sys.stderr, format=log_format),
-            dict(sink=log_file, rotation='16MB', encoding='utf-8', enqueue=True, retention='10 days', format=log_format)
+            dict(sink=sys.stderr, format=log_format_console),
+            dict(sink=log_file, rotation='16MB', encoding='utf-8', enqueue=True, retention='10 days', format=log_format_file)
         ])
     
     parser = argparse.ArgumentParser()
-    parser.add_argument('-p', '--path', type=str, default=os.path.dirname(__file__), help='Path of directory or file.')
-    parser.add_argument('-o', '--overwrite', action='store_true', help='Whether or not overwrite existing files.')
-    parser.add_argument('-s', '--seek', type=float, default=0, help='Time of the first capture.')
-    parser.add_argument('-w', '--width', type=int, default=360, help='Width of each image.')
-    parser.add_argument('-t', '--tile', type=str, default='5x4', help='Tile shaple of the screen shots.')
+    parser.add_argument('-p', '--path',     type=str,   default=os.path.dirname(__file__), help='Path of directory or file.')
+    parser.add_argument('-s', '--seek',     type=float, default=0,      help='Time of the first capture.')
+    parser.add_argument('-w', '--width',    type=int,   default=360,    help='Width of each image.')
+    parser.add_argument('-t', '--tile',     type=str,   default='5x4',  help='Tile shaple of the screen shots.')
+    parser.add_argument('-o', '--overwrite',action='store_true',        help='Whether or not overwrite existing files.')
     args = parser.parse_args()
     logger.info(f'Current arguments: {args}')
     
