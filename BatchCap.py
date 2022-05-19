@@ -41,7 +41,7 @@ def capture_file(file:str, args, output_rule=None):
         output_rule = default_output_rule
     
     try:
-        logger.info(f'{NL}Probing file {file}.')
+        logger.info(f'Probing file {file}.')
         info = probe_file(file)
         total = info['duration'] * info['avg_frame_rate']
         c, r = args.tile.split('x')
@@ -51,17 +51,17 @@ def capture_file(file:str, args, output_rule=None):
         output_name = output_rule(file)
         if not args.overwrite:
             if os.path.exists(output_name):
-                logger.info(f'{NL}{output_name} already exists and overwrite is set to false. Skipping this.{NL}')
+                logger.info(f'{output_name} already exists and overwrite is set to false. Skipping this.{NL}')
                 return file, 'skipped'
     except Exception:
-        logger.error(f'{NL}{format_exc()}')
-        logger.info(f'{NL}Failed to get info of {file}.{NL}')
+        logger.error(format_exc())
+        logger.info(f'Failed to get info of {file}.{NL}')
         return file, 'failed to probe'
         
     try:
         begin = datetime.now()
         info_txt = f"size: {size:.2f} MB, duration: {timedelta(seconds=info['duration'])}"
-        logger.info(f'{NL}Begin capturing {file}. [{info_txt}]')
+        logger.info(f'Begin capturing {file}. ({info_txt})')
         (ffmpeg
             .input(file, ss=args.seek)
             .filter('select', f'not(mod(n, {interval}))')
@@ -72,29 +72,29 @@ def capture_file(file:str, args, output_rule=None):
             .overwrite_output()
             .run(capture_stdout=True))
         end = datetime.now()
-        logger.info(f'{NL}Finished capturing {file}. Time elapsed: {end-begin}.{NL}')
+        logger.info(f'Finished capturing {file}. Time elapsed: {end-begin}.{NL}')
         return file, 'succeeded'
     except Exception:
-        logger.error(f'{NL}{format_exc()}')
-        logger.info(f'{NL}Failed to capture {file}. Time elapsed: {end-begin}.{NL}')
+        logger.error(format_exc())
+        logger.info(f'Failed to capture {file}. Time elapsed: {end-begin}.{NL}')
         return file, 'failed to capture'
 
 def capture(file:str, args, output_rule=None):
     begin = datetime.now()
     
-    logger.info(f'{NL}Start task at {begin}.')
+    logger.info(f'Start task at {begin}.{NL}')
     if os.path.isdir(file):
         tree_input = inspect_dir(file)
         nodes = tree_input.walk(lambda n: (not n.is_dir()) and is_video(n.id))
         paths = [node.abs_id for node in nodes]
-        logger.info(f'{NL}Files to be captured:{NL}' + NL.join(paths) + NL)
+        logger.info(f'Files to be captured:' + NL + NL.join(paths) + NL)
         for file in tqdm(paths):
             yield capture_file(file, args, output_rule)
     else:
         yield capture_file(file, args, output_rule)
         
     end = datetime.now()
-    logger.info(f'{NL}End task. Total time elapsed: {end-begin}.{NL}')
+    logger.info(f'End task. Total time elapsed: {end-begin}.{NL}')
 
 def inspect_dir(dir:str, tree:NodeDir=None) -> NodeDir:
     if tree == None:
@@ -127,11 +127,13 @@ def is_video(file:str) -> bool:
     return file.endswith(('.mp4', '.mkv', '.avi', '.mov', '.wmv', '.m4v', '.flv', '.rmvb'))
 
 if __name__ == '__main__':
-    logger.add(os.path.join(os.path.dirname(__file__), 'cap_log.log'),
-        rotation='16MB',
-        encoding='utf-8',
-        enqueue=True,
-        retention='10 days')
+    log_file = os.path.join(os.path.dirname(__file__), 'cap_log.log')
+    log_format = "\n[<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green>] | <level>{level: <8}</level>\n <level>{message}</level>"
+    logger.configure(
+        handlers=[
+            dict(sink=sys.stderr, format=log_format),
+            dict(sink=log_file, rotation='16MB', encoding='utf-8', enqueue=True, retention='10 days', format=log_format)
+        ])
     
     parser = argparse.ArgumentParser()
     parser.add_argument('-p', '--path', type=str, default=os.path.dirname(__file__), help='Path of directory or file.')
@@ -140,10 +142,10 @@ if __name__ == '__main__':
     parser.add_argument('-w', '--width', type=int, default=360, help='Width of each image.')
     parser.add_argument('-t', '--tile', type=str, default='5x4', help='Tile shaple of the screen shots.')
     args = parser.parse_args()
-    logger.info(f'{NL}Current arguments: {args}{NL}')
+    logger.info(f'Current arguments: {args}{NL}')
     
     if not os.path.exists(args.path):
-        logger.error(f'{NL}Path {args.path} does not exsist.{NL}')
+        logger.error(f'Path {args.path} does not exsist.{NL}')
         sys.exit(1)
     
     args.path = args.path.replace('\\', SEP)
@@ -154,7 +156,7 @@ if __name__ == '__main__':
             count += 1
     output = NL.join([f'{result}:\t{file}' for file, result in output])
     
-    logger.info(f'{NL}Captured: {count}{NL}{output}{NL}')
+    logger.info(f'Captured: {count}{NL}{output}{NL}')
     
     
     
