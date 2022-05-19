@@ -58,8 +58,52 @@ To handle a batch of videos, especially those under a specific directory, runnin
 In Windows, use a powershell script (with extension ".ps1").
 
 ```powershell
-# $PSScriptRoot is the path of the script file. 2>&1 | ForEach-Object{"$_"} is to mute NativeCommandError output.
-& path_to_python path_to_batchcap.py -p $PSScriptRoot -s 10 -o -w 360 -t 5x4 2>&1 | ForEach-Object{"$_"}
+# Sorts the Pipeline output into several kinds of metadata.
+function GetAnsVal {
+    param([Parameter(Mandatory=$true, ValueFromPipeline=$true)][System.Object[]][AllowEmptyString()]$Output)
+    
+    $all = New-Object System.Collections.Generic.List[System.Object]
+    $exception = New-Object System.Collections.Generic.List[System.Object]
+    $stderr = New-Object System.Collections.Generic.List[System.Object]
+    $stdout = New-Object System.Collections.Generic.List[System.Object]
+    $Output | ForEach-Object {
+        if ($_ -ne $null){
+            if ($_.GetType().FullName -ne 'System.Management.Automation.ErrorRecord'){
+                if ($null -ne $_.Exception.message){
+                    $all.Add($_.Exception.message )
+                    $exception.Add($_.Exception.message )
+                }
+                elseif ($_ -ne $null){
+                    $stdout.Add($_)
+                }
+            } else {
+                $all.Add($_.Exception.message)
+                $stderr.Add($_.Exception.message)
+            }   
+         }
+    }
+    [hashtable]$return = @{}
+    $return.Meta0=$all;$return.Meta1=$exception;$return.Meta2=$stderr;$return.Meta3=$stdout
+    return $return
+}
+
+# Replace the '\r\n' to '\n'
+function Replace {
+    param([Parameter(Mandatory=$true, ValueFromPipeline=$true)][hashtable]$r)
+
+    $Meta0=""
+    foreach ($el in $r.Meta0){
+        $Meta0+=$el
+    }
+    $Meta0=($Meta0 -split "[`r`n]") -join "`n"
+    $Meta0=($Meta0 -split "[`n]{2,}") -join "`n"
+
+    return $Meta0
+}
+
+# GetAnsVal and Replace make sure powershell output correctly. 
+# Replace ForEach-Object {& GetAnsVal $_ | & Replace} with ForEach-Object {"$_"} to see the difference.
+& path_to_python path_to_batchcap.py -p $PSScriptRoot -s 10 -o -w 360 -t 5x4 2>&1 | ForEach-Object {& GetAnsVal $_ | & Replace}
 
 pause
 ```
