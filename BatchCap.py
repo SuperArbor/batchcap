@@ -6,7 +6,7 @@ from loguru import logger
 from Tree import *
 from traceback import format_exc
 from tqdm import tqdm
-from datetime import datetime
+from datetime import datetime, timedelta
 
 NL = '\n'
 
@@ -60,7 +60,8 @@ def capture_file(file:str, args, output_rule=None):
         
     try:
         begin = datetime.now()
-        logger.info(f'{NL}Begin capturing {file}. Size: {size:.2f} MB.')
+        info_txt = f"size: {size:.2f} MB, duration: {timedelta(seconds=info['duration'])}"
+        logger.info(f'{NL}Begin capturing {file}. [{info_txt}]')
         (ffmpeg
             .input(file, ss=args.seek)
             .filter('select', f'not(mod(n, {interval}))')
