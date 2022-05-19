@@ -20,15 +20,15 @@ sudo apt install ffmpeg
 
 The arguments below are used to specify the input and output behaviors.
 
-*-p / --path*: Path of a folder or path of a video file. It specifies the video(s) to be captured.
+*-p / --path* (type: string): Path of a folder or path of a video file. It specifies the video(s) to be captured.
 
-*-o / --overwrite*: Whether to overwrite the existing files. This option needs no parameters. To opt out overwriting, just ommit this argument.
+*-o / --overwrite* (store true): Whether to overwrite the existing files. This option needs no parameters. To opt out overwriting, just ommit this argument.
 
-*-w / --width*: The width of each captured image (in pixels). Type integer.
+*-w / --width* (type: integer, default: 360): The width of each captured image (in pixels).
 
-*-t / --tile*: Shape of the tile made up from the captured images. Type string with format 'cxr' where c stands for columns and r stands for rows.
+*-t / --tile* (type: string, default value: "5x4"): Shape of the tile made up from the captured images. Type string with format "cxr" where c stands for columns and r stands for rows.
 
-*-s / --seek*: Time of the first capture (in seconds). Type float.
+*-s / --seek* (type: float, default: 0): Time of the first capture (in seconds).
 
 ### Run the tool
 
@@ -87,7 +87,7 @@ function GetAnsVal {
     return $return
 }
 
-# Replace the '\r\n' to '\n'
+# Replace '\r\n' with '\n'
 function Replace {
     param([Parameter(Mandatory=$true, ValueFromPipeline=$true)][hashtable]$r)
 
