@@ -62,18 +62,23 @@ def capture_file(file:str, args, output_rule=None):
         begin = datetime.now()
         info_txt = f"size: {size:.2f} MB, duration: {timedelta(seconds=info['duration'])}"
         logger.info(f'Begin capturing {file}. ({info_txt})')
-        (ffmpeg
+        out, err = (ffmpeg
             .input(file, ss=args.seek)
             .filter('select', f'not(mod(n, {interval}))')
             .filter('scale', args.width, -1)
             .filter('tile', args.tile)
             # **{'loglevel': 'error'} is for less output
-            .output(output_name, vframes=1, **{'loglevel': 'error'})
+            .output(output_name, **{'frames:v': 1, 'loglevel': 'error'})
             .overwrite_output()
             .run(capture_stdout=True))
+       
         end = datetime.now()
-        logger.info(f'Finished capturing {file}. Time elapsed: {end-begin}.')
-        return file, 'succeeded'
+        if err:
+            logger.error(f'Error occured during capturing {file}:{NL}{err}')
+            return file, 'error occurred'
+        else:
+            logger.info(f'Succeeded in capturing {file}. Time elapsed: {end-begin}.')
+            return file, 'succeeded'
     except Exception:
         logger.error(format_exc())
         logger.info(f'Failed to capture {file}. Time elapsed: {end-begin}.')
