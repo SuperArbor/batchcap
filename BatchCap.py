@@ -9,6 +9,10 @@ from tqdm import tqdm
 from datetime import datetime, timedelta
 
 NL = '\n'
+if os.name == 'nt':
+    FONTFILE = r'C:\Windows\Fonts\arial.ttf'
+else:
+    FONTFILE = '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc'
 
 def probe_file(file:str):
     '''Returns basic information of a video.'''
@@ -64,6 +68,9 @@ def capture_file(file:str, args, output_rule=None):
         logger.info(f'Begin capturing {file}. ({info_txt})')
         out, err = (ffmpeg
             .input(file, ss=args.seek)
+            .drawtext(text=None, x='text_h', y='text_h', 
+                      fontcolor='white', fontsize=60, fontfile=FONTFILE, 
+                      timecode='00:00:00.00', r='30000/1001')
             .filter('select', f'not(mod(n, {interval}))')
             .filter('scale', args.width, -1)
             .filter('tile', args.tile)
