@@ -1,7 +1,7 @@
 import os, sys
 import ffmpeg
 import argparse
-
+import subprocess
 from loguru import logger
 from Tree import *
 from traceback import format_exc
@@ -21,6 +21,8 @@ def probe_file(file:str):
     probe = ffmpeg.probe(file)
     video_info = next(s for s in probe['streams'] if s['codec_type'] == 'video')
     avg_frame_rate = video_info['avg_frame_rate']
+    w, h = video_info['display_aspect_ratio'].split(':')
+    display_aspect_ratio = float(w) / float(h)
     if '/' in avg_frame_rate:
         a, b = avg_frame_rate.split('/')
         avg_frame_rate = float(a) / float(b)
@@ -28,7 +30,7 @@ def probe_file(file:str):
         avg_frame_rate = float(avg_frame_rate)
     duration = float(probe['format']['duration'])
     size = float(probe['format']['size'])
-    return {'avg_frame_rate': avg_frame_rate, 'duration': duration, 'size': size}
+    return {'avg_frame_rate': avg_frame_rate, 'display_aspect_ratio': display_aspect_ratio, 'duration': duration, 'size': size}
 
 def default_output_rule(input:str):
     '''Defines the format of output screenshots according to the input video.'''
@@ -98,6 +100,110 @@ def capture_file(file:str, args, output_rule=None):
         
         # Run command
         out, err = cmd_stream.run(capture_stdout=True) 
+       
+        end = datetime.now()
+        if err:
+            logger.error(f'Error occured during capturing {file}:{NL}{err}')
+            return file, 'error occurred'
+        else:
+            logger.info(f'Succeeded in capturing {file}. Time elapsed: {end-begin}.')
+            return file, 'succeeded'
+    except Exception:
+        logger.error(format_exc())
+        logger.info(f'Failed to capture {file}. Time elapsed: {end-begin}.')
+        return file, 'failed to capture'
+
+def escape_chars(text, chars):
+    """Helper function to escape uncomfortable characters."""
+    text = str(text)
+    chars = list(set(chars))
+    if '\\' in chars:
+        chars.remove('\\')
+        chars.insert(0, '\\')
+    for ch in chars:
+        text = text.replace(ch, '\\\\' + ch)
+    return text
+
+def capture_file_fail(file:str, args, output_rule=None):
+    '''Captures a video according to arguments.'''
+    
+    if not os.path.isfile(file):
+        return file, 'invalid file path' 
+    
+    if not output_rule:
+        output_rule = default_output_rule
+    # Check if a file with the same name to the output exists.
+    output_name = output_rule(file)
+    if not args.overwrite:
+        if os.path.exists(output_name):
+            logger.info(f'{output_name} already exists and overwrite is set to false. Skipping this.')
+            return file, 'skipped'
+    
+    try:
+        # Probe file info.
+        logger.info(f'Probing file {file}.')
+        info = probe_file(file)
+    except Exception:
+        logger.error(format_exc())
+        logger.info(f'Failed to get info of {file}.')
+        return file, 'failed to probe'
+        
+    try:
+        # total frames
+        total = info['duration'] * info['avg_frame_rate']
+        # number of frames to skip
+        skip = int(args.seek * info['avg_frame_rate'])
+        c, r = args.tile.split('x')
+        c, r = int(c), int(r)
+        interval = (total - skip) // (c * r)
+        size = info['size'] / (1024 * 1024)
+        w, h = args.width, args.width / info['display_aspect_ratio']
+        
+        if total < args.seek:
+            raise ValueError(f'Total duration less than specified seek value {args.seek}.')
+        
+        begin = datetime.now()
+        info_txt = f"size: {size:.2f} MB, duration: {timedelta(seconds=info['duration'])}, avg frame rate: {info['avg_frame_rate']}."
+        logger.info(f'Begin capturing {file}. ({info_txt})')
+
+        args_command = 'ffmpeg'
+        args_input = ' '.join([f'-ss {skip + i * interval} -i {file}' for i in range(c * r) ])
+        
+        if args.timestamp:
+            args_drawtext = (f'drawtext=fontcolor=yellow:' 
+                            + 'fontfile=' + escape_chars(FONTFILE, "\\\'=:") + ':'
+                            + 'fontsize=60:' 
+                            + 'text=' + escape_chars('%{pts:hms}', '\\\'=:') + ':' 
+                            + 'x=text_h:' 
+                            + 'y=text_h')
+            args_filter_complex = ('-filter_complex "'
+                                        + ''.join([f'[{i}:v]scale={args.width}:-1[a{i}];[a{i}]{args_drawtext}[v{i}];' for i in range(c * r)]) 
+                                        + ''.join([f'[v{i}]' for i in range(c * r)])
+                                        + f'xstack=inputs={c * r}:layout='
+                                        + '|'.join([f'{i * w}_{j * h}' for j in range(r) for i in range(c)])
+                                        + '[c]"')
+        else:
+            args_filter_complex = ('-filter_complex "'
+                                        + ''.join([f'[{i}:v]scale={args.width}:-1[v{i}];' for i in range(c * r)]) 
+                                        + ''.join([f'[v{i}]' for i in range(c * r)])
+                                        + f'xstack=inputs={c * r}:layout='
+                                        + '|'.join([f'{i * w}_{j * h}' for j in range(r) for i in range(c)])
+                                        + '[c]"')
+        args_map = '-map [c]'
+        args_frames_v = '-frames:v 1'
+        args_loglevel = '-loglevel error'
+        if args.overwrite:
+            args_output = f'{output_name} -y'
+        else:
+            args_output = f'{output_name}'
+        cmd = ' '.join([args_command, args_input, args_filter_complex, args_map, args_frames_v, args_loglevel, args_output])
+        
+        logger.info(f'Running command:{NL}{cmd}')
+        process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+        out, err = process.communicate(input)
+        retcode = process.poll()
+        if retcode:
+            raise ValueError('ffmpeg', out, err)
        
         end = datetime.now()
         if err:
