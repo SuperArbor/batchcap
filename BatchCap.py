@@ -43,33 +43,43 @@ def capture_file(file:str, args, output_rule=None):
     
     if not output_rule:
         output_rule = default_output_rule
+    # Check if a file with the same name to the output exists.
+    output_name = output_rule(file)
+    if not args.overwrite:
+        if os.path.exists(output_name):
+            logger.info(f'{output_name} already exists and overwrite is set to false. Skipping this.')
+            return file, 'skipped'
     
     try:
+        # Probe file info.
         logger.info(f'Probing file {file}.')
         info = probe_file(file)
-        total = info['duration'] * info['avg_frame_rate']
-        c, r = args.tile.split('x')
-        interval = total // (int(r) * int(c))
-        size = info['size'] / (1024 * 1024)
-            
-        output_name = output_rule(file)
-        if not args.overwrite:
-            if os.path.exists(output_name):
-                logger.info(f'{output_name} already exists and overwrite is set to false. Skipping this.')
-                return file, 'skipped'
     except Exception:
         logger.error(format_exc())
         logger.info(f'Failed to get info of {file}.')
         return file, 'failed to probe'
         
     try:
+        # total frames
+        total = info['duration'] * info['avg_frame_rate']
+        # number of frames to skip
+        skip = int(args.seek * info['avg_frame_rate'])
+        c, r = args.tile.split('x')
+        interval = (total - skip) // (int(r) * int(c))
+        size = info['size'] / (1024 * 1024)
+        
+        if total < args.seek:
+            raise ValueError(f'Total duration less than specified seek value {args.seek}.')
+        
         begin = datetime.now()
-        info_txt = f"size: {size:.2f} MB, duration: {timedelta(seconds=info['duration'])}"
+        info_txt = f"size: {size:.2f} MB, duration: {timedelta(seconds=info['duration'])}, avg frame rate: {info['avg_frame_rate']}."
         logger.info(f'Begin capturing {file}. ({info_txt})')
         
         cmd_stream = (ffmpeg
-            .input(file, ss=args.seek)
-            .filter('select', f'not(mod(n, {interval}))'))
+            # .input(file, ss=args.seek)        # Setting ss would cause inaccurate timestamp.
+            .input(file)
+            # Select frames that locate after {skip} and make (n - {skip}) able to be exactly divided by internal.
+            .filter('select', f'not(mod(n - {skip}, {interval})) * not(lt(n, {skip}))'))
         
         # Add timestamp if specified
         if args.timestamp:
