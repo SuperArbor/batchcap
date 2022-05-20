@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 
 NL = '\n'
 if os.name == 'nt':
-    FONTFILE = r'C:\Windows\Fonts\arial.ttf'
+    FONTFILE = 'C:/Windows/Fonts/arial.ttf'
 else:
     FONTFILE = '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc'
 
@@ -66,18 +66,28 @@ def capture_file(file:str, args, output_rule=None):
         begin = datetime.now()
         info_txt = f"size: {size:.2f} MB, duration: {timedelta(seconds=info['duration'])}"
         logger.info(f'Begin capturing {file}. ({info_txt})')
-        out, err = (ffmpeg
+        
+        cmd_stream = (ffmpeg
             .input(file, ss=args.seek)
-            .drawtext(text=None, x='text_h', y='text_h', 
-                      fontcolor='white', fontsize=60, fontfile=FONTFILE, 
-                      timecode='00:00:00.00', r='30000/1001')
-            .filter('select', f'not(mod(n, {interval}))')
+            .filter('select', f'not(mod(n, {interval}))'))
+        
+        # Add timestamp if specified
+        if args.timestamp:
+            cmd_stream = cmd_stream.drawtext(
+                text='%{pts:hms}', x='text_h', y='text_h', 
+                fontcolor='yellow', fontsize=60, fontfile=FONTFILE, escape_text=False)
+            
+        cmd_stream = (cmd_stream
             .filter('scale', args.width, -1)
             .filter('tile', args.tile)
             # **{'loglevel': 'error'} is for less output
             .output(output_name, **{'frames:v': 1, 'loglevel': 'error'})
-            .overwrite_output()
-            .run(capture_stdout=True))
+            .overwrite_output())
+        cmd = ' '.join(cmd_stream.compile())
+        logger.info(f"Running command:{NL}{cmd}")
+        
+        # Run command
+        out, err = cmd_stream.run(capture_stdout=True) 
        
         end = datetime.now()
         if err:
@@ -159,6 +169,8 @@ if __name__ == '__main__':
     parser.add_argument('-w', '--width',    type=int,   default=360,    help='Width of each image.')
     parser.add_argument('-t', '--tile',     type=str,   default='5x4',  help='Tile shaple of the screen shots.')
     parser.add_argument('-o', '--overwrite',action='store_true',        help='Whether or not overwrite existing files.')
+    parser.add_argument('-i', '--timestamp',action='store_true',        help='Whether or not show present timestamp on captures.')
+    
     args = parser.parse_args()
     logger.info(f'Current arguments: {args}')
     
