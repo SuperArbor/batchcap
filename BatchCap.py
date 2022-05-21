@@ -1,3 +1,4 @@
+from enum import Enum
 import os, sys
 import argparse
 import subprocess
@@ -23,6 +24,13 @@ class AsyncError(Exception):
     def __repr__(self) -> str:
         return self.cmd + ' error'
 
+class CaptureResult(Enum):
+    SUCCEEDED = 0
+    PROBE_FAILED = -1
+    CAPTURE_ERROR_OCCURED = 1
+    CAPTURE_SKIPPED = 2
+    CAPTURE_FAILED = -2
+
 def run_async(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE):
     process = subprocess.Popen(args, stdout=stdout, stderr=stderr)
     out, err = process.communicate()
@@ -44,6 +52,8 @@ def probe_file(file:str):
     args = ['ffprobe', '-show_format', '-show_streams', '-of', 'json', file]
     
     out, err = run_async(args)
+    if err:
+        logger.info(f'Error occurred during probing {file}:{NL}{err}')
     probe = json.loads(out.decode('utf-8'))
     video_info = next(s for s in probe['streams'] if s['codec_type'] == 'video')
     avg_frame_rate = video_info['avg_frame_rate']
@@ -111,7 +121,8 @@ def capture_file(file:str, args, output_rule=None):
     '''
     
     if not os.path.isfile(file):
-        return file, 'invalid file path' 
+        logger.error(f'Specified file {file} does not exist.')
+        return file, CaptureResult.PROBE_FAILED
     
     if not output_rule:
         output_rule = default_output_rule
@@ -120,7 +131,7 @@ def capture_file(file:str, args, output_rule=None):
     if not args.overwrite:
         if os.path.exists(output_name):
             logger.info(f'{output_name} already exists and overwrite is set to false. Skipping this.')
-            return file, 'skipped'
+            return file, CaptureResult.CAPTURE_SKIPPED
     
     try:
         # Probe file info.
@@ -129,7 +140,7 @@ def capture_file(file:str, args, output_rule=None):
     except Exception:
         logger.error(format_exc())
         logger.info(f'Failed to get info of {file}.')
-        return file, 'failed to probe'
+        return file, CaptureResult.PROBE_FAILED
         
     try:
         total = info['duration']
@@ -183,14 +194,14 @@ def capture_file(file:str, args, output_rule=None):
         _, err = run_async(cmd)
         if err:
             logger.error(f'Error occured during capturing {file}:{NL}{err}')
-            return file, 'error occurred'
+            return file, CaptureResult.CAPTURE_ERROR_OCCURED
         else:
             logger.info(f'Succeeded in capturing {file}. Time elapsed: {datetime.now()-begin}.')
-            return file, 'succeeded'
+            return file, CaptureResult.SUCCEEDED
     except Exception:
         logger.error(format_exc())
         logger.info(f'Failed to capture {file}. Time elapsed: {datetime.now()-begin}.')
-        return file, 'failed to capture'
+        return file, CaptureResult.CAPTURE_FAILED
 
 def capture(file:str, args, output_rule=None):
     begin = datetime.now()
@@ -200,6 +211,9 @@ def capture(file:str, args, output_rule=None):
         tree_input = inspect_dir(file)
         nodes = tree_input.walk(lambda n: (not n.is_dir()) and is_video(n.id))
         paths = [node.abs_id for node in nodes]
+        if not paths:
+            logger.warning(f'No files to be captured.')
+            return
         logger.info(f'Files to be captured:' + NL + NL.join(paths))
         for file in tqdm(paths):
             yield capture_file(file, args, output_rule)
@@ -271,13 +285,27 @@ if __name__ == '__main__':
     
     args.path = args.path.replace('\\', SEP)
     output = list(capture(args.path, args=args))
-    count = 0
-    for file, result in output:
-        if result == 'succeeded':
-            count += 1
-    output = NL.join([f'{result}:\t{file}' for file, result in output])
-    
-    logger.info(f'Captured: {count}{NL}{output}')
+    if output:
+        count_succeeded = 0
+        count_failed = 0
+        count_skipped = 0
+        count_error = 0
+        for file, result in output:
+            if result == CaptureResult.SUCCEEDED:
+                count_succeeded += 1
+            elif result == CaptureResult.CAPTURE_SKIPPED:
+                count_skipped += 1
+            elif result == CaptureResult.CAPTURE_ERROR_OCCURED:
+                count_error += 1
+            else:
+                count_failed += 1
+            
+        logger.info(f'Succeeded: {count_succeeded}{NL}' 
+                    + f'Skipped: {count_skipped}{NL}' 
+                    + f'Completed with error: {count_error}{NL}' 
+                    + f'Failed: {count_failed}')
+        
+        logger.info(NL.join([f'{result}:\t{file}' for file, result in output]))
     
     
     
