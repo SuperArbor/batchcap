@@ -1,5 +1,4 @@
 import os, sys
-import ffmpeg
 import argparse
 import subprocess
 from loguru import logger
@@ -7,6 +6,7 @@ from Tree import *
 from traceback import format_exc
 from tqdm import tqdm
 from datetime import datetime, timedelta
+import json
 
 NL = '\n'
 if os.name == 'nt':
@@ -14,11 +14,37 @@ if os.name == 'nt':
 else:
     FONTFILE = '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc'
 
+class AsyncError(Exception):
+    def __init__(self, cmd:str, out, err) -> None:
+        super().__init__(*args)
+        self.cmd = cmd
+        self.out = out
+        self.err = err
+    def __repr__(self) -> str:
+        return self.cmd + ' error'
+
+def run_async(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE):
+    process = subprocess.Popen(args, stdout=stdout, stderr=stderr)
+    out, err = process.communicate()
+    retcode = process.poll()
+    if retcode != 0:
+        cmd = 'unknown'
+        if isinstance(args, list):
+            if len(args) > 0:
+                cmd = args[0]
+        elif isinstance(args, str):
+            cmd = args
+        raise AsyncError(cmd, out, err)
+    return out, err
+
 def probe_file(file:str):
     '''Returns basic information of a video.'''
     if not os.path.isfile(file):
         raise FileNotFoundError(f"{file}")
-    probe = ffmpeg.probe(file)
+    args = ['ffprobe', '-show_format', '-show_streams', '-of', 'json', file]
+    
+    out, err = run_async(args)
+    probe = json.loads(out.decode('utf-8'))
     video_info = next(s for s in probe['streams'] if s['codec_type'] == 'video')
     avg_frame_rate = video_info['avg_frame_rate']
     w, h = video_info['display_aspect_ratio'].split(':')
@@ -37,81 +63,6 @@ def default_output_rule(input:str):
     filename, _ = os.path.splitext(input)
     return f'{filename}_cap.png'
 
-def capture_file(file:str, args, output_rule=None):
-    '''Captures a video according to arguments.'''
-    
-    if not os.path.isfile(file):
-        return file, 'invalid file path' 
-    
-    if not output_rule:
-        output_rule = default_output_rule
-    # Check if a file with the same name to the output exists.
-    output_name = output_rule(file)
-    if not args.overwrite:
-        if os.path.exists(output_name):
-            logger.info(f'{output_name} already exists and overwrite is set to false. Skipping this.')
-            return file, 'skipped'
-    
-    try:
-        # Probe file info.
-        logger.info(f'Probing file {file}.')
-        info = probe_file(file)
-    except Exception:
-        logger.error(format_exc())
-        logger.info(f'Failed to get info of {file}.')
-        return file, 'failed to probe'
-        
-    try:
-        # total frames
-        total = info['duration'] * info['avg_frame_rate']
-        # number of frames to skip
-        skip = int(args.seek * info['avg_frame_rate'])
-        c, r = args.tile.split('x')
-        interval = (total - skip) // (int(r) * int(c))
-        size = info['size'] / (1024 * 1024)
-        
-        if total < args.seek:
-            raise ValueError(f'Total duration less than specified seek value {args.seek}.')
-        
-        begin = datetime.now()
-        info_txt = f"size: {size:.2f} MB, duration: {timedelta(seconds=info['duration'])}, avg frame rate: {info['avg_frame_rate']}."
-        logger.info(f'Begin capturing {file}. ({info_txt})')
-        
-        cmd_stream = (ffmpeg
-            # .input(file, ss=args.seek)        # Setting ss would cause inaccurate timestamp.
-            .input(file)
-            # Select frames that locate after {skip} and make (n - {skip}) able to be exactly divided by internal.
-            .filter('select', f'not(mod(n - {skip}, {interval})) * not(lt(n, {skip}))'))
-        
-        # Add timestamp if specified
-        if args.timestamp:
-            cmd_stream = cmd_stream.drawtext(
-                text='%{pts:hms}', x='text_h', y='text_h', 
-                fontcolor='yellow', fontsize=60, fontfile=FONTFILE, escape_text=False)
-            
-        cmd_stream = (cmd_stream
-            .filter('scale', args.width, -1)
-            .filter('tile', args.tile)
-            # **{'loglevel': 'error'} is for less output
-            .output(output_name, **{'frames:v': 1, 'loglevel': 'error'})
-            .overwrite_output())
-        cmd = cmd_stream.compile()
-        logger.info(f"Running command:{NL}{cmd}")
-        
-        # Run command
-        out, err = cmd_stream.run(capture_stdout=True) 
-       
-        if err:
-            logger.error(f'Error occured during capturing {file}:{NL}{err}')
-            return file, 'error occurred'
-        else:
-            logger.info(f'Succeeded in capturing {file}. Time elapsed: {datetime.now()-begin}.')
-            return file, 'succeeded'
-    except Exception:
-        logger.error(format_exc())
-        logger.info(f'Failed to capture {file}. Time elapsed: {datetime.now()-begin}.')
-        return file, 'failed to capture'
-
 def escape_chars(text, chars, escape='\\'):
     """Helper function to escape uncomfortable characters."""
     text = str(text)
@@ -123,8 +74,41 @@ def escape_chars(text, chars, escape='\\'):
         text = text.replace(ch, escape + ch)
     return text
 
-def capture_file_efficient(file:str, args, output_rule=None):
-    '''Captures a video according to arguments.'''
+def capture_file(file:str, args, output_rule=None):
+    '''Captures a video according to arguments.
+    
+    It is done by generating a command and use subprocess to run it. 
+    The command will be something like:
+    
+    ['ffmpeg', 
+        '-ss', '10.0', '-i', 'video.mkv', 
+        '-ss', '133.86', '-i', 'video.mkv', 
+        '-filter_complex', 
+            '[0:v]scale=360:-1[a0];[a0]drawtext=fontcolor=yellow:fontfile=C\\\\:/Windows/Fonts/arial.ttf:fontsize=20:text=0\\\\:00\\\\:10:x=text_h:y=text_h[v0];
+            [1:v]scale=360:-1[a1];[a1]drawtext=fontcolor=yellow:fontfile=C\\\\:/Windows/Fonts/arial.ttf:fontsize=20:text=0\\\\:02\\\\:13.860000:x=text_h:y=text_h[v1];
+            [v0][v1]xstack=inputs=2:layout=0_0.0|360_0.0[c]', 
+        '-map', '[c]', 
+        '-frames:v', '1', 
+        '-loglevel', 'error', 
+        'video_cap.png', 
+        '-y']
+    
+    Some of the arguments, like the 'text=0\\\\:00\\\\:10' is calculated in the code.
+    
+    Another way to do this is:
+    
+    ['ffmpeg',
+        '-i', 'video.mkv', 
+        '-filter_complex', 
+            '[0]select=not(mod(n - 0\, 308.0)) * not(lt(n\, 0))[s0];[s0]scale=360:-1[s1];[s1]tile=5x4[s2]',
+        '-map', [s2],
+        '-frames:v', '1', 
+        '-loglevel', 'error', 
+        'video_cap.png',
+        '-y']
+    
+    Though looking much easier, the second way is computationally expensive.
+    '''
     
     if not os.path.isfile(file):
         return file, 'invalid file path' 
@@ -163,6 +147,7 @@ def capture_file_efficient(file:str, args, output_rule=None):
         info_txt = f"size: {size:.2f} MB, duration: {timedelta(seconds=info['duration'])}, avg frame rate: {info['avg_frame_rate']}."
         logger.info(f'Begin capturing {file}. ({info_txt})')
 
+        # Generating command
         cmd = ['ffmpeg']
         for i in range(c * r):
             cmd.extend(['-ss', f'{skip + i*interval}', '-i', file])
@@ -189,17 +174,13 @@ def capture_file_efficient(file:str, args, output_rule=None):
         cmd.extend(['-frames:v', '1'])
         cmd.extend(['-loglevel', 'error'])
         if args.overwrite:
-            cmd.extend([f'{output_name}', '-y'])
+            cmd.extend([output_name, '-y'])
         else:
-            cmd.extend([f'{output_name}'])
+            cmd.extend([output_name])
         
+        # Running command
         logger.info(f'Running command:{NL}{cmd}')
-        process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
-        out, err = process.communicate()
-        retcode = process.poll()
-        if retcode:
-            raise ValueError('ffmpeg', out, err)
-       
+        _, err = run_async(cmd)
         if err:
             logger.error(f'Error occured during capturing {file}:{NL}{err}')
             return file, 'error occurred'
@@ -221,9 +202,9 @@ def capture(file:str, args, output_rule=None):
         paths = [node.abs_id for node in nodes]
         logger.info(f'Files to be captured:' + NL + NL.join(paths))
         for file in tqdm(paths):
-            yield capture_file_efficient(file, args, output_rule)
+            yield capture_file(file, args, output_rule)
     else:
-        yield capture_file_efficient(file, args, output_rule)
+        yield capture_file(file, args, output_rule)
         
     end = datetime.now()
     logger.info(f'End task. Total time elapsed: {end-begin}.')
