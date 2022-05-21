@@ -30,6 +30,9 @@ class CaptureResult(Enum):
     CAPTURE_ERROR_OCCURED = 1
     CAPTURE_SKIPPED = 2
     CAPTURE_FAILED = -2
+    
+    def __str__(self) -> str:
+        return self.name
 
 def run_async(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE):
     process = subprocess.Popen(args, stdout=stdout, stderr=stderr)
