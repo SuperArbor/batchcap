@@ -56,9 +56,7 @@ def probe_file(file:str):
         raise FileNotFoundError(f"{file}")
     args = ['ffprobe', '-show_format', '-show_streams', '-of', 'json', file]
     
-    out, err = run_async(args)
-    if err:
-        logger.info(f'Error occurred during probing {file}:{NL}{err}')
+    out, _ = run_async(args)
     probe = json.loads(out.decode('utf-8'))
     video_info = next(s for s in probe['streams'] if s['codec_type'] == 'video')
     avg_frame_rate = video_info['avg_frame_rate']
@@ -142,7 +140,7 @@ def capture_file(file:str, args, output_rule=None):
     
     try:
         # Probe file info.
-        logger.info(f'Probing file {file}.')
+        logger.info(f'Probing file {file}...')
         info = probe_file(file)
     except Exception:
         logger.error(format_exc())
@@ -197,7 +195,8 @@ def capture_file(file:str, args, output_rule=None):
             cmd.extend([output_name])
         
         # Running command
-        logger.info(f'Running command:{NL}{cmd}')
+        # logger.info(f'Running command:{NL}{cmd}')
+        logger.info(f'Running command...')
         _, err = run_async(cmd)
         if err:
             logger.error(f'Error occured during capturing {file}:{NL}{err}')
