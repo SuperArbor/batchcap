@@ -10,6 +10,8 @@ from datetime import datetime, timedelta
 import json
 
 NL = '\n'
+FONTSIZE = 20
+FONTCOLOR = 'yellow'
 if os.name == 'nt':
     FONTFILE = 'C:/Windows/Fonts/arial.ttf'
 else:
@@ -171,7 +173,7 @@ def capture_file(file:str, args, output_rule=None):
             fontfile = escape_chars(FONTFILE, r"\' =:", r'\\')
             gettext = lambda s: escape_chars(str(timedelta(seconds=s)), r"\'=:", r'\\')
             cmd.append (
-                        ''.join([f'[{i}:v]scale={args.width}:-1[a{i}];[a{i}]drawtext=fontcolor=yellow:fontfile={fontfile}:fontsize=20:text={gettext(skip + i*interval)}:x=text_h:y=text_h[v{i}];' for i in range(c * r)]) 
+                        ''.join([f'[{i}:v]scale={args.width}:-1[a{i}];[a{i}]drawtext=fontcolor={FONTCOLOR}:fontfile={fontfile}:fontsize={FONTSIZE}:text={gettext(skip + i*interval)}:x=text_h:y=text_h[v{i}];' for i in range(c * r)]) 
                         + ''.join([f'[v{i}]' for i in range(c * r)])
                         + f'xstack=inputs={c * r}:layout='
                         + '|'.join([f'{i * w}_{j * h}' for j in range(r) for i in range(c)])
