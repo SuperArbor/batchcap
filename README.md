@@ -4,15 +4,7 @@ A convenient batch capture tool for both Windows and Linux.
 
 ## Prerequisites
 
-ffmpeg should be installed.
-
-For windows, [Here](https://ffmpeg.org/download.html) is the download link.
-
-For Linux, simply run
-
-```bash
-sudo apt install ffmpeg
-```
+FFmpeg 5 should be installed. As far as I know, FFmpeg 3 lacks some APIs, causing the tool to fail. FFmpeg 4 is not tested.
 
 ## Usage
 
@@ -20,11 +12,11 @@ sudo apt install ffmpeg
 
 The arguments below are used to specify the input and output behaviors.
 
-*-p / --path* (type: string): **Absolute** path of a folder or a file. It specifies the video(s) to be captured.
+*-p / --path* (type: string, default: directory of BatchCap.py): **Absolute** path of a folder or a file. It specifies the video(s) to be captured.
 
 *-w / --width* (type: integer, default: 360): The width of each captured image (in pixels).
 
-*-t / --tile* (type: string, default value: "5x4"): Shape of the tile made up from the captured images. Type string with format "cxr" where c stands for columns and r stands for rows.
+*-t / --tile* (type: string, default value: "5x4"): Shape of the tile made up from the captured images with format "cxr" where c stands for columns and r stands for rows.
 
 *-s / --seek* (type: float, default: 0): Time of the first capture (in seconds).
 
@@ -39,6 +31,8 @@ You can choose to run the tool with command or with script. Usually when there i
 #### Run with command
 
 Run the following line in powershell (Windows) or bash (Linux).
+
+On Windows, although both cmd.exe and powershell.exe can do the job, powershell is more recommended. cmd.exe does not support UNC directory, which may make the tool fail if the files to be captured are on a remote device.
 
 ```powershell
 # This command captures screenshot(s) of path_to_folder_or_file (or the videos under the folder).
@@ -57,7 +51,7 @@ To handle a batch of videos, especially those under a specific directory, runnin
 
 (2) run the script.
 
-In Windows, use a powershell script (with extension ".ps1").
+On Windows, use a powershell script (with extension ".ps1").
 
 ```powershell
 # Sorts the Pipeline output into several kinds of metadata.
@@ -110,10 +104,10 @@ function Replace {
 pause
 ```
 
-In Linux, use a bash script (with extension ".sh").
+On Linux, use a bash script (with extension ".sh").
 
 ```bash
 #!/bin/bash
 
-path_to_python path_to_batchcap.py -p $(dirname "$BASH_SOURCE") -s 10 -o -i -w 360 -t 5x4
+path_to_python path_to_batchcap.py -p $(dirname $BASH_SOURCE) -s 10 -o -i -w 360 -t 5x4
 ```
