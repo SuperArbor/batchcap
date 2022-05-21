@@ -62,8 +62,10 @@ def probe_file(file:str):
     probe = json.loads(out.decode('utf-8'))
     video_info = next(s for s in probe['streams'] if s['codec_type'] == 'video')
     avg_frame_rate = video_info['avg_frame_rate']
-    w, h = video_info['display_aspect_ratio'].split(':')
-    display_aspect_ratio = float(w) / float(h)
+    width, height = int(video_info['width']), int(video_info['height'])
+    if 'sample_aspect_ratio' in video_info.keys():
+        sw, sh = video_info['sample_aspect_ratio'].split(':')
+        width, height = int(width * float(sw)), int(height * float(sh))
     if '/' in avg_frame_rate:
         a, b = avg_frame_rate.split('/')
         avg_frame_rate = float(a) / float(b)
@@ -71,7 +73,7 @@ def probe_file(file:str):
         avg_frame_rate = float(avg_frame_rate)
     duration = float(probe['format']['duration'])
     size = float(probe['format']['size'])
-    return {'avg_frame_rate': avg_frame_rate, 'display_aspect_ratio': display_aspect_ratio, 'duration': duration, 'size': size}
+    return {'avg_frame_rate': avg_frame_rate, 'width': width, 'height': height, 'duration': duration, 'size': size}
 
 def default_output_rule(input:str):
     '''Defines the format of output screenshots according to the input video.'''
@@ -144,7 +146,7 @@ def capture_file(file:str, args, output_rule=None):
         info = probe_file(file)
     except Exception:
         logger.error(format_exc())
-        logger.info(f'Failed to get info of {file}.')
+        logger.info(f'Failed to probe {file}.')
         return file, CaptureResult.PROBE_FAILED
         
     try:
@@ -154,13 +156,13 @@ def capture_file(file:str, args, output_rule=None):
         c, r = int(c), int(r)
         interval = (total - skip) / (c * r)
         size = info['size'] / (1024 * 1024)
-        w, h = args.width, (args.width / info['display_aspect_ratio'])
+        w, h = args.width, (info['height'] * args.width / info['width'])
         
         if total < args.seek:
             raise ValueError(f'Total duration less than specified seek value {args.seek}.')
         
         begin = datetime.now()
-        info_txt = f"size: {size:.2f} MB, duration: {timedelta(seconds=info['duration'])}, avg frame rate: {info['avg_frame_rate']}."
+        info_txt = f"size: {size:.2f} MB, duration: {timedelta(seconds=info['duration'])}, ratio: { info['width']} x {info['height']}, average frame rate: {info['avg_frame_rate']:.3f}"
         logger.info(f'Begin capturing {file}. ({info_txt})')
 
         # Generating command
