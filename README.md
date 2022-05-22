@@ -2,7 +2,7 @@
 
 A convenient batch capture tool for both Windows and Linux. Below is an example.
 
-![A sample](https://user-images.githubusercontent.com/11332363/169680634-f175ae58-795c-40e2-ad13-4e98b478ec32.png)
+![FLYING OVER COSTA RICA (4K UHD) - Relaxing Music Along With Beautiful Nature Videos - 4K Video Ultra_cap](https://user-images.githubusercontent.com/11332363/169685551-13072b34-e2a5-40a3-aa82-9e7d0e6ad300.png)
 
 ## Prerequisites
 
