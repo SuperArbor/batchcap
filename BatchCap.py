@@ -82,10 +82,9 @@ def probe_file(file:str):
     size = float(probe['format']['size'])
     return {'avg_frame_rate': avg_frame_rate, 'width': width, 'height': height, 'duration': duration, 'size': size}
 
-def default_output_rule(input:str):
+def default_output_rule(file:str):
     '''Defines the format of output screenshots according to the input video.'''
-    filename, _ = os.path.splitext(input)
-    return f'{filename}_cap.png'
+    return f'{file}.cap.png'
 
 def suppress_log(message:str, max_length=MAX_LOG_LENGTH):
     '''Suppress logging output in case the content is too long.'''
