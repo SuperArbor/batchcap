@@ -16,7 +16,7 @@ The arguments below are used to specify the input and output behaviors.
 
 *-p / --path* (type: string, default: directory of BatchCap.py): **Absolute** path of a folder or a file. It specifies the video(s) to be captured.
 
-*-w / --width* (type: integer, default: 360): The width of each captured image (in pixels).
+*-w / --width* (type: integer, default: 320): The width of each captured image (in pixels).
 
 *-t / --tile* (type: string, default value: "5x4"): Shape of the tile made up from the captured images with format "cxr" where c stands for columns and r stands for rows.
 
@@ -42,7 +42,7 @@ On Windows, although both cmd.exe and powershell.exe can do the job, powershell 
 # The height of each image is 360 pixels (the ratio is remained the same as the video).
 # The capture begins at second 10.0 in the video.
 # Overwrite existing files with the same file name with the output files.
-path_to_python path_to_batchcap.py -p path_to_folder_or_file -s 10 -o -i -w 360 -t 5x4
+path_to_python path_to_batchcap.py -p path_to_folder_or_file -s 10 -o -i -w 320 -t 5x4
 ```
 
 #### Run with script
@@ -101,7 +101,7 @@ function Replace {
 
 # GetAnsVal and Replace make sure powershell output correctly. 
 # Replace ForEach-Object {& GetAnsVal $_ | & Replace} with ForEach-Object {"$_"} to see the difference.
-& path_to_python path_to_batchcap.py -p $PSScriptRoot -s 10 -o -i -w 360 -t 5x4 2>&1 | ForEach-Object {& GetAnsVal $_ | & Replace}
+& path_to_python path_to_batchcap.py -p $PSScriptRoot -s 10 -o -i -w 320 -t 5x4 2>&1 | ForEach-Object {& GetAnsVal $_ | & Replace}
 
 pause
 ```
@@ -111,5 +111,5 @@ On Linux, use a bash script (with extension ".sh").
 ```bash
 #!/bin/bash
 
-path_to_python path_to_batchcap.py -p $(dirname $BASH_SOURCE) -s 10 -o -i -w 360 -t 5x4
+path_to_python path_to_batchcap.py -p $(dirname $BASH_SOURCE) -s 10 -o -i -w 320 -t 5x4
 ```
