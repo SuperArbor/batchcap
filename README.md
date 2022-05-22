@@ -1,6 +1,8 @@
 # Manual
 
-A convenient batch capture tool for both Windows and Linux.
+A convenient batch capture tool for both Windows and Linux. Below is an example.
+
+![A sample](https://user-images.githubusercontent.com/11332363/169680634-f175ae58-795c-40e2-ad13-4e98b478ec32.png)
 
 ## Prerequisites
 
