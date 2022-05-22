@@ -10,9 +10,13 @@ from datetime import datetime, timedelta
 import json
 
 NL = '\n'
-FONTSIZE = 20
+MIN_FONTSIZE = 1
+MAX_FONTSIZE = 999
+DEFAULT_FONTSIZE = 20
+DEFAULT_HEIGHT = 360
 FONTCOLOR = 'yellow'
 MAX_LOG_LENGTH = 1024
+
 if os.name == 'nt':
     FONTFILE = 'C:/Windows/Fonts/arial.ttf'
 else:
@@ -150,6 +154,7 @@ def capture_file(file:str, args, output_rule=None):
             logger.info(f'{output_name} already exists and overwrite is set to false. Skipping this.')
             return file, CaptureResult.CAPTURE_SKIPPED
     
+    begin = datetime.now()
     try:
         # Probe file info.
         logger.info(f'Probing file {file}...')
@@ -160,42 +165,45 @@ def capture_file(file:str, args, output_rule=None):
         return file, CaptureResult.PROBE_FAILED
         
     try:
-        total = info['duration']
-        skip = float(args.seek)
+        duration = info['duration']
+        seek = args.seek
         c, r = args.tile.split('x')
         c, r = int(c), int(r)
-        interval = (total - skip) / (c * r)
+        interval = (duration - seek) / (c * r)
         size = info['size'] / (1024 * 1024)
-        w, h = args.width, (info['height'] * args.width / info['width'])
+        width, height = info['width'] * args.height / info['height'], args.height
         
-        if total < args.seek:
-            raise ValueError(f'Total duration less than specified seek value {args.seek}.')
+        if duration < seek:
+            raise ValueError(f'Invalid argument "-s/--seek". Total duration {duration} less than specified seek value {args.seek}.')
         
-        begin = datetime.now()
         info_txt = f"size: {size:.2f} MB, duration: {timedelta(seconds=info['duration'])}, ratio: { info['width']} x {info['height']}, average frame rate: {info['avg_frame_rate']:.3f}"
         logger.info(f'Begin capturing {file}. ({info_txt})')
 
         # Generating command
         cmd = ['ffmpeg']
         for i in range(c * r):
-            cmd.extend(['-ss', f'{skip + i*interval}', '-i', file])
+            cmd.extend(['-ss', f'{seek + i*interval}', '-i', file])
         
         cmd.append('-filter_complex')
         if args.timestamp:
             fontfile = escape_chars(FONTFILE, r"\' =:", r'\\')
-            gettext = lambda s: escape_chars(str(timedelta(seconds=s)), r"\'=:", r'\\')
+            fontsize = min(max(DEFAULT_FONTSIZE * height // DEFAULT_HEIGHT, MIN_FONTSIZE), MAX_FONTSIZE)
+            def gettext(t):
+                h, m, s = str(timedelta(seconds=t)).split(':')
+                t = f'{h}:{m}:{float(s):.3f}'
+                return escape_chars(t, r"\'=:", r'\\')
             cmd.append (
-                        ''.join([f'[{i}:v]scale={args.width}:-1[a{i}];[a{i}]drawtext=fontcolor={FONTCOLOR}:fontfile={fontfile}:fontsize={FONTSIZE}:text={gettext(skip + i*interval)}:x=text_h:y=text_h[v{i}];' for i in range(c * r)]) 
+                        ''.join([f'[{i}:v]scale=-1:{args.height}[a{i}];[a{i}]drawtext=fontcolor={FONTCOLOR}:fontfile={fontfile}:fontsize={fontsize}:text={gettext(seek + i*interval)}:x=text_h:y=text_h[v{i}];' for i in range(c * r)]) 
                         + ''.join([f'[v{i}]' for i in range(c * r)])
                         + f'xstack=inputs={c * r}:layout='
-                        + '|'.join([f'{i * w}_{j * h}' for j in range(r) for i in range(c)])
+                        + '|'.join([f'{i * width}_{j * height}' for j in range(r) for i in range(c)])
                         + '[c]')
         else:
             cmd.append (
-                        ''.join([f'[{i}:v]scale={args.width}:-1[v{i}];' for i in range(c * r)]) 
+                        ''.join([f'[{i}:v]scale=-1:{args.height}[v{i}];' for i in range(c * r)]) 
                         + ''.join([f'[v{i}]' for i in range(c * r)])
                         + f'xstack=inputs={c * r}:layout='
-                        + '|'.join([f'{i * w}_{j * h}' for j in range(r) for i in range(c)])
+                        + '|'.join([f'{i * width}_{j * height}' for j in range(r) for i in range(c)])
                         + '[c]')
             
         cmd.extend(['-map', '[c]'])
@@ -287,18 +295,33 @@ if __name__ == '__main__':
         ])
     
     parser = argparse.ArgumentParser()
-    parser.add_argument('-p', '--path',     type=str,   default=os.path.dirname(__file__), help='Path of directory or file.')
-    parser.add_argument('-s', '--seek',     type=float, default=0,      help='Time of the first capture.')
-    parser.add_argument('-w', '--width',    type=int,   default=320,    help='Width of each image.')
-    parser.add_argument('-t', '--tile',     type=str,   default='5x4',  help='Tile shaple of the screen shots.')
-    parser.add_argument('-o', '--overwrite',action='store_true',        help='Whether or not overwrite existing files.')
-    parser.add_argument('-i', '--timestamp',action='store_true',        help='Whether or not show present timestamp on captures.')
+    parser.add_argument('-p', '--path',     type=str,   default=os.path.dirname(__file__),  help='Path of directory or file.')
+    parser.add_argument('-s', '--seek',     type=float, default=0,                          help='Time of the first capture.')
+    parser.add_argument('-g', '--height',   type=int,   default=360,                        help='Height of each image in the capture.')
+    parser.add_argument('-t', '--tile',     type=str,   default='5x4',                      help='Tile shaple of the screen shots.')
+    parser.add_argument('-o', '--overwrite',action='store_true',                            help='Whether or not overwrite existing files.')
+    parser.add_argument('-i', '--timestamp',action='store_true',                            help='Whether or not show present timestamp on captures.')
     
     args = parser.parse_args()
     logger.info(f'Current arguments: {args}')
     
-    if not os.path.exists(args.path):
-        logger.error(f'Path {args.path} does not exsist.')
+    try:
+        if not os.path.exists(args.path):
+            logger.error(f'Invalid argument "-p/--path". Path {args.path} does not exsist.')
+            sys.exit(1)
+        if args.height < 0:
+            logger.error(f'Invalid argument "-g/--height". Height {args.height} invalid.')
+            sys.exit(1)
+        if args.seek < 0:
+            logger.error(f'Invalid argument "-s/--seek". Seek {args.seek} invalid.')
+            sys.exit(1)
+        c, r = args.tile.split('x')
+        c, r = int(c), int(r)
+        if c < 1 or r < 1:
+            logger.error(f'Invalid argument "-t/--tile". Tile {args.tile} invalid.')
+            sys.exit(1)
+    except Exception:
+        logger.error(f'Failed to parse arguments.')
         sys.exit(1)
     
     args.path = args.path.replace('\\', SEP)
