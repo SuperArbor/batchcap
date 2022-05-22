@@ -8,6 +8,7 @@ from traceback import format_exc
 from tqdm import tqdm
 from datetime import datetime, timedelta
 import json
+import psutil
 
 NL = '\n'
 MIN_FONTSIZE = 1
@@ -16,6 +17,7 @@ DEFAULT_FONTSIZE = 20
 DEFAULT_HEIGHT = 360
 FONTCOLOR = 'yellow'
 MAX_LOG_LENGTH = 1024
+MEMORY_PARA = 10
 
 if os.name == 'nt':
     FONTFILE = 'C:/Windows/Fonts/arial.ttf'
@@ -104,7 +106,7 @@ def escape_chars(text, chars, escape='\\'):
         text = text.replace(ch, escape + ch)
     return text
 
-def capture_file_(file:str, args, output_rule=None):
+def capture_file_once(file:str, args, capture_info:dict):
     '''Captures a video according to arguments.
     
     It is done by generating a command and use subprocess to run it. 
@@ -139,45 +141,13 @@ def capture_file_(file:str, args, output_rule=None):
     
     Though looking much easier, the second way is computationally expensive.
     '''
-    
-    if not os.path.isfile(file):
-        logger.error(f'Specified file {file} does not exist.')
-        return file, CaptureResult.PROBE_FAILED
-    
-    if not output_rule:
-        output_rule = default_output_rule
-    # Check if a file with the same name to the output exists.
-    output_name = output_rule(file)
-    if not args.overwrite:
-        if os.path.exists(output_name):
-            logger.info(f'{output_name} already exists and overwrite is set to false. Skipping this.')
-            return file, CaptureResult.CAPTURE_SKIPPED
-    
-    begin = datetime.now()
     try:
-        # Probe file info.
-        logger.info(f'Probing file {file}...')
-        info = probe_file(file)
-    except Exception:
-        logger.error(format_exc())
-        logger.info(f'Failed to probe {file}.')
-        return file, CaptureResult.PROBE_FAILED
+        output_name = capture_info['output_name']
+        seek = capture_info['seek']
+        interval = capture_info['interval']
+        width, height = capture_info['width'], capture_info['height']
+        c, r = capture_info['columns'], capture_info['rows']
         
-    try:
-        duration = info['duration']
-        seek = args.seek
-        c, r = args.tile.split('x')
-        c, r = int(c), int(r)
-        interval = (duration - seek) / (c * r)
-        size = info['size'] / (1024 * 1024)
-        width, height = info['width'] * args.height / info['height'], args.height
-        
-        if duration < seek:
-            raise ValueError(f'Invalid argument "-s/--seek". Total duration {duration} less than specified seek value {args.seek}.')
-        
-        info_txt = f"size: {size:.2f} MB, duration: {timedelta(seconds=info['duration'])}, ratio: { info['width']} x {info['height']}, average frame rate: {info['avg_frame_rate']:.3f}"
-        logger.info(f'Begin capturing {file} ({info_txt})...')
-
         # Generating command
         cmd = ['ffmpeg']
         for i in range(c * r):
@@ -213,82 +183,48 @@ def capture_file_(file:str, args, output_rule=None):
         else:
             cmd.extend([output_name])
         
-        # Running command
-        logger.info(f'Running command:{NL}{cmd}')
         _, err = run_async(cmd)
         if err:
             logger.error(f'Error occured during capturing {file}:{NL}{suppress_log(err)}')
-            return file, CaptureResult.CAPTURE_ERROR_OCCURED
+            return CaptureResult.CAPTURE_ERROR_OCCURED
         else:
-            logger.info(f'Succeeded in capturing {file}. Time elapsed: {datetime.now()-begin}.')
-            return file, CaptureResult.SUCCEEDED
+            logger.info(f'Succeeded in capturing {file}.')
+            return CaptureResult.SUCCEEDED
     except Exception:
         logger.error(format_exc())
-        logger.info(f'Failed to capture {file}. Time elapsed: {datetime.now()-begin}.')
-        return file, CaptureResult.CAPTURE_FAILED
+        logger.info(f'Failed to capture {file}.')
+        return CaptureResult.CAPTURE_FAILED
 
-def capture_file(file:str, args, output_rule=None):
+def capture_file_in_sequence(file:str, args, capture_info:dict):
     '''Captures a video according to arguments.
-    To avoid memory shortage, the task is accomplished by splitting the command to several sub commands.
+    To avoid memory shortage or when the command generated in capture_file_once is too long, 
+    the task is accomplished by splitting the command to several sub commands.
     '''
-    
-    if not os.path.isfile(file):
-        logger.error(f'Specified file {file} does not exist.')
-        return file, CaptureResult.PROBE_FAILED
-    
-    if not output_rule:
-        output_rule = default_output_rule
-    # Check if a file with the same name to the output exists.
-    output_name = output_rule(file)
-    if not args.overwrite:
-        if os.path.exists(output_name):
-            logger.info(f'{output_name} already exists and overwrite is set to false. Skipping this.')
-            return file, CaptureResult.CAPTURE_SKIPPED
-    
-    begin = datetime.now()
     try:
-        # Probe file info.
-        logger.info(f'Probing file {file}...')
-        info = probe_file(file)
-    except Exception:
-        logger.error(format_exc())
-        logger.info(f'Failed to probe {file}.')
-        return file, CaptureResult.PROBE_FAILED
-        
-    try:
-        duration = info['duration']
-        seek = args.seek
-        c, r = args.tile.split('x')
-        c, r = int(c), int(r)
-        interval = (duration - seek) / (c * r)
-        size = info['size'] / (1024 * 1024)
-        width, height = info['width'] * args.height / info['height'], args.height
-        
-        if duration < seek:
-            raise ValueError(f'Invalid argument "-s/--seek". Total duration {duration} less than specified seek value {args.seek}.')
-        
-        info_txt = f"size: {size:.2f} MB, duration: {timedelta(seconds=info['duration'])}, ratio: { info['width']} x {info['height']}, average frame rate: {info['avg_frame_rate']:.3f}"
-        logger.info(f'Begin capturing {file} ({info_txt})...')
-
-        # Generating command
-        captured_files = []
-        # Generating images
-        for i in range(c * r):
-            captured = f'{output_name}_{i}'
-            cmd = ['ffmpeg', '-ss', f'{seek + i*interval}', '-i', file, '-vf', f'scale=-1:{args.height}', '-frames:v', '1', '-loglevel', 'error', '-f', 'image2', captured, '-y']
-            try:
+        try:
+            # Generating command
+            output_name = capture_info['output_name']
+            seek = capture_info['seek']
+            interval = capture_info['interval']
+            width, height = capture_info['width'], capture_info['height']
+            c, r = capture_info['columns'], capture_info['rows']
+            
+            tmp_files = []
+            # Generating images
+            for i in range(c * r):
+                captured = f'{output_name}_{i}'
+                cmd = ['ffmpeg', '-ss', f'{seek + i*interval}', '-i', file, '-vf', f'scale=-1:{args.height}', '-frames:v', '1', '-loglevel', 'error', '-f', 'image2', captured, '-y']
                 _, err = run_async(cmd)
-                captured_files.append(captured)
-            except Exception as e:
-                raise e
-            finally:
-                os.remove(captured_files)
+                tmp_files.append(captured)
+        except Exception as e:
+            [os.remove(f) for f in tmp_files]
+            raise e
         
         try:
              # Generating stacking command
             cmd = ['ffmpeg']
             for i in range(c * r):
-                cmd.extend(['-f', 'image2', '-i', captured_files[i]])
+                cmd.extend(['-f', 'image2', '-i', tmp_files[i]])
             cmd.append('-filter_complex')
             if args.timestamp:
                 fontfile = escape_chars(FONTFILE, r"\' =:", r'\\')
@@ -322,18 +258,70 @@ def capture_file(file:str, args, output_rule=None):
             
             if err:
                 logger.error(f'Error occured during capturing {file}:{NL}{suppress_log(err)}')
-                return file, CaptureResult.CAPTURE_ERROR_OCCURED
+                return CaptureResult.CAPTURE_ERROR_OCCURED
             else:
-                logger.info(f'Succeeded in capturing {file}. Time elapsed: {datetime.now()-begin}.')
-                return file, CaptureResult.SUCCEEDED
+                logger.info(f'Succeeded in capturing {file}.')
+                return CaptureResult.SUCCEEDED
         except Exception as e:
             raise e
         finally:
-            os.remove(captured_files)
+            [os.remove(f) for f in tmp_files]
     except Exception:
         logger.error(format_exc())
-        logger.info(f'Failed to capture {file}. Time elapsed: {datetime.now()-begin}.')
-        return file, CaptureResult.CAPTURE_FAILED
+        logger.info(f'Failed to capture {file}.')
+        return CaptureResult.CAPTURE_FAILED
+
+def capture_file(file:str, args, output_rule=None):
+    '''Probe and capture a file.'''
+    if not os.path.isfile(file):
+        logger.error(f'Specified file {file} does not exist.')
+        return file, CaptureResult.PROBE_FAILED
+    
+    if not output_rule:
+        output_rule = default_output_rule
+    # Check if a file with the same name to the output exists.
+    output_name = output_rule(file)
+    if not args.overwrite:
+        if os.path.exists(output_name):
+            logger.info(f'{output_name} already exists and overwrite is set to false. Skipping this.')
+            return file, CaptureResult.CAPTURE_SKIPPED
+    
+    begin = datetime.now()
+    try:
+        # Probe file info.
+        logger.info(f'Probing file {file}...')
+        info = probe_file(file)
+        
+        duration = info['duration']
+        seek = args.seek
+        c, r = args.tile.split('x')
+        c, r = int(c), int(r)
+        interval = (duration - seek) / (c * r)
+        size = info['size'] / (1024 * 1024)
+        width, height = info['width'] * args.height / info['height'], args.height
+        
+        if duration < seek:
+            raise ValueError(f'Invalid argument "-s/--seek". Total duration {duration} less than specified seek value {args.seek}.')
+        
+        info_txt = f"size: {size:.2f} MB, duration: {timedelta(seconds=info['duration'])}, ratio: { info['width']} x {info['height']}, average frame rate: {info['avg_frame_rate']:.3f}"
+    except Exception:
+        logger.error(format_exc())
+        logger.info(f'Failed to probe {file}.')
+        return file, CaptureResult.PROBE_FAILED
+    
+    logger.info(f'Begin capturing {file} ({info_txt})...')
+    capture_info = {'seek': seek, 'output_name': output_name, 'interval': interval, 'columns':c, 'rows':r, 'width': width, 'height': height}
+    available_memory = psutil.virtual_memory().available / (1024 * 1024)
+    
+    # Select a method according to the file size and the current available memory
+    if available_memory * MEMORY_PARA  > (size * c * r):
+        logger.info(f'Capturing {file} in one command.')
+        result = capture_file_once(file, args, capture_info)
+    else:
+        logger.info(f'Capturing {file} in splitted commands.')
+        result = capture_file_in_sequence(file, args, capture_info)
+    logger.info(f'Time elapsed: {datetime.now()-begin}.')
+    return file, result
 
 def capture(file:str, args, output_rule=None):
     begin = datetime.now()
