@@ -24,7 +24,6 @@ else:
 
 class AsyncError(Exception):
     def __init__(self, cmd:str, out, err) -> None:
-        super().__init__(*args)
         self.cmd = cmd
         self.out = out
         self.err = err
@@ -45,6 +44,7 @@ def run_async(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE):
     '''Invoke a process asyncly.'''
     process = subprocess.Popen(args, stdout=stdout, stderr=stderr)
     out, err = process.communicate()
+    out, err = out.decode('utf-8'), err.decode('utf-8')
     retcode = process.poll()
     if retcode != 0:
         cmd = 'unknown'
@@ -66,7 +66,7 @@ def probe_file(file:str):
     if err:
         logger.error(f'Error occured during probing {file}:{NL}{suppress_log(err)}')
         
-    probe = json.loads(out.decode('utf-8'))
+    probe = json.loads(out)
     video_info = next(s for s in probe['streams'] if s['codec_type'] == 'video')
     avg_frame_rate = video_info['avg_frame_rate']
     width, height = int(video_info['width']), int(video_info['height'])
@@ -104,7 +104,7 @@ def escape_chars(text, chars, escape='\\'):
         text = text.replace(ch, escape + ch)
     return text
 
-def capture_file(file:str, args, output_rule=None):
+def capture_file_(file:str, args, output_rule=None):
     '''Captures a video according to arguments.
     
     It is done by generating a command and use subprocess to run it. 
@@ -176,7 +176,7 @@ def capture_file(file:str, args, output_rule=None):
             raise ValueError(f'Invalid argument "-s/--seek". Total duration {duration} less than specified seek value {args.seek}.')
         
         info_txt = f"size: {size:.2f} MB, duration: {timedelta(seconds=info['duration'])}, ratio: { info['width']} x {info['height']}, average frame rate: {info['avg_frame_rate']:.3f}"
-        logger.info(f'Begin capturing {file}. ({info_txt})')
+        logger.info(f'Begin capturing {file} ({info_txt})...')
 
         # Generating command
         cmd = ['ffmpeg']
@@ -187,12 +187,12 @@ def capture_file(file:str, args, output_rule=None):
         if args.timestamp:
             fontfile = escape_chars(FONTFILE, r"\' =:", r'\\')
             fontsize = min(max(DEFAULT_FONTSIZE * height // DEFAULT_HEIGHT, MIN_FONTSIZE), MAX_FONTSIZE)
-            def gettext(t):
+            def get_timestamp(t):
                 h, m, s = str(timedelta(seconds=t)).split(':')
                 t = f'{h}:{m}:{float(s):.3f}'
                 return escape_chars(t, r"\'=:", r'\\')
             cmd.append (
-                        ''.join([f'[{i}:v:0]scale=-1:{args.height}[a{i}];[a{i}]drawtext=fontcolor={FONTCOLOR}:fontfile={fontfile}:fontsize={fontsize}:text={gettext(seek + i*interval)}:x=text_h:y=text_h[v{i}];' for i in range(c * r)]) 
+                        ''.join([f'[{i}:v:0]scale=-1:{args.height}[a{i}];[a{i}]drawtext=fontcolor={FONTCOLOR}:fontfile={fontfile}:fontsize={fontsize}:text={get_timestamp(seek + i*interval)}:x=text_h:y=text_h[v{i}];' for i in range(c * r)]) 
                         + ''.join([f'[v{i}]' for i in range(c * r)])
                         + f'xstack=inputs={c * r}:layout='
                         + '|'.join([f'{i * width}_{j * height}' for j in range(r) for i in range(c)])
@@ -214,7 +214,6 @@ def capture_file(file:str, args, output_rule=None):
             cmd.extend([output_name])
         
         # Running command
-        logger.info(f'Capturing file {file}...')
         logger.info(f'Running command:{NL}{cmd}')
         _, err = run_async(cmd)
         if err:
@@ -223,6 +222,114 @@ def capture_file(file:str, args, output_rule=None):
         else:
             logger.info(f'Succeeded in capturing {file}. Time elapsed: {datetime.now()-begin}.')
             return file, CaptureResult.SUCCEEDED
+    except Exception:
+        logger.error(format_exc())
+        logger.info(f'Failed to capture {file}. Time elapsed: {datetime.now()-begin}.')
+        return file, CaptureResult.CAPTURE_FAILED
+
+def capture_file(file:str, args, output_rule=None):
+    '''Captures a video according to arguments.
+    To avoid memory shortage, the task is accomplished by splitting the command to several sub commands.
+    '''
+    
+    if not os.path.isfile(file):
+        logger.error(f'Specified file {file} does not exist.')
+        return file, CaptureResult.PROBE_FAILED
+    
+    if not output_rule:
+        output_rule = default_output_rule
+    # Check if a file with the same name to the output exists.
+    output_name = output_rule(file)
+    if not args.overwrite:
+        if os.path.exists(output_name):
+            logger.info(f'{output_name} already exists and overwrite is set to false. Skipping this.')
+            return file, CaptureResult.CAPTURE_SKIPPED
+    
+    begin = datetime.now()
+    try:
+        # Probe file info.
+        logger.info(f'Probing file {file}...')
+        info = probe_file(file)
+    except Exception:
+        logger.error(format_exc())
+        logger.info(f'Failed to probe {file}.')
+        return file, CaptureResult.PROBE_FAILED
+        
+    try:
+        duration = info['duration']
+        seek = args.seek
+        c, r = args.tile.split('x')
+        c, r = int(c), int(r)
+        interval = (duration - seek) / (c * r)
+        size = info['size'] / (1024 * 1024)
+        width, height = info['width'] * args.height / info['height'], args.height
+        
+        if duration < seek:
+            raise ValueError(f'Invalid argument "-s/--seek". Total duration {duration} less than specified seek value {args.seek}.')
+        
+        info_txt = f"size: {size:.2f} MB, duration: {timedelta(seconds=info['duration'])}, ratio: { info['width']} x {info['height']}, average frame rate: {info['avg_frame_rate']:.3f}"
+        logger.info(f'Begin capturing {file} ({info_txt})...')
+
+        # Generating command
+        captured_files = []
+        # Generating images
+        for i in range(c * r):
+            captured = f'{output_name}_{i}'
+            cmd = ['ffmpeg', '-ss', f'{seek + i*interval}', '-i', file, '-vf', f'scale=-1:{args.height}', '-frames:v', '1', '-loglevel', 'error', '-f', 'image2', captured, '-y']
+            try:
+                _, err = run_async(cmd)
+                captured_files.append(captured)
+            except Exception as e:
+                raise e
+            finally:
+                os.remove(captured_files)
+        
+        try:
+             # Generating stacking command
+            cmd = ['ffmpeg']
+            for i in range(c * r):
+                cmd.extend(['-f', 'image2', '-i', captured_files[i]])
+            cmd.append('-filter_complex')
+            if args.timestamp:
+                fontfile = escape_chars(FONTFILE, r"\' =:", r'\\')
+                fontsize = min(max(DEFAULT_FONTSIZE * height // DEFAULT_HEIGHT, MIN_FONTSIZE), MAX_FONTSIZE)
+                def get_timestamp(t):
+                    h, m, s = str(timedelta(seconds=t)).split(':')
+                    t = f'{h}:{m}:{float(s):.3f}'
+                    return escape_chars(t, r"\'=:", r'\\')
+                cmd.append (
+                            ''.join([f'[{i}]drawtext=fontcolor={FONTCOLOR}:fontfile={fontfile}:fontsize={fontsize}:text={get_timestamp(seek + i*interval)}:x=text_h:y=text_h[v{i}];' for i in range(c * r)]) 
+                            + ''.join([f'[v{i}]' for i in range(c * r)])
+                            + f'xstack=inputs={c * r}:layout='
+                            + '|'.join([f'{i * width}_{j * height}' for j in range(r) for i in range(c)])
+                            + '[c]')
+            else:
+                cmd.append (
+                            ''.join([f'[{i}]' for i in range(c * r)])
+                            + f'xstack=inputs={c * r}:layout='
+                            + '|'.join([f'{i * width}_{j * height}' for j in range(r) for i in range(c)])
+                            + '[c]')
+                
+            cmd.extend(['-map', '[c]'])
+            cmd.extend(['-loglevel', 'error'])
+            if args.overwrite:
+                cmd.extend([output_name, '-y'])
+            else:
+                cmd.extend([output_name])
+            
+            # Run stacking command
+            _, err = run_async(cmd)
+            
+            if err:
+                logger.error(f'Error occured during capturing {file}:{NL}{suppress_log(err)}')
+                return file, CaptureResult.CAPTURE_ERROR_OCCURED
+            else:
+                logger.info(f'Succeeded in capturing {file}. Time elapsed: {datetime.now()-begin}.')
+                return file, CaptureResult.SUCCEEDED
+        except Exception as e:
+            raise e
+        finally:
+            os.remove(captured_files)
     except Exception:
         logger.error(format_exc())
         logger.info(f'Failed to capture {file}. Time elapsed: {datetime.now()-begin}.')
@@ -297,7 +404,7 @@ if __name__ == '__main__':
     parser.add_argument('-p', '--path',     type=str,   default=os.path.dirname(__file__),  help='Path of directory or file.')
     parser.add_argument('-s', '--seek',     type=float, default=0,                          help='Time of the first capture.')
     parser.add_argument('-g', '--height',   type=int,   default=360,                        help='Height of each image in the capture.')
-    parser.add_argument('-t', '--tile',     type=str,   default='5x3',                      help='Tile shaple of the screen shots.')
+    parser.add_argument('-t', '--tile',     type=str,   default='5x4',                      help='Tile shaple of the screen shots.')
     parser.add_argument('-o', '--overwrite',action='store_true',                            help='Whether or not overwrite existing files.')
     parser.add_argument('-i', '--timestamp',action='store_true',                            help='Whether or not show present timestamp on captures.')
     
