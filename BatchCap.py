@@ -56,9 +56,12 @@ def probe_file(file:str):
     '''Returns basic information of a video.'''
     if not os.path.isfile(file):
         raise FileNotFoundError(f"{file}")
-    args = ['ffprobe', '-show_format', '-show_streams', '-of', 'json', file]
+    args = ['ffprobe', '-show_format', '-show_streams', '-loglevel', 'error', '-of', 'json', file]
     
-    out, _ = run_async(args)
+    out, err = run_async(args)
+    if err:
+        logger.error(f'Error occured during probing {file}:{NL}{suppress_log(err)}')
+        
     probe = json.loads(out.decode('utf-8'))
     video_info = next(s for s in probe['streams'] if s['codec_type'] == 'video')
     avg_frame_rate = video_info['avg_frame_rate']
