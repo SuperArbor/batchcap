@@ -12,6 +12,7 @@ import json
 NL = '\n'
 FONTSIZE = 20
 FONTCOLOR = 'yellow'
+MAX_LOG_LENGTH = 1024
 if os.name == 'nt':
     FONTFILE = 'C:/Windows/Fonts/arial.ttf'
 else:
@@ -37,6 +38,7 @@ class CaptureResult(Enum):
         return self.name
 
 def run_async(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE):
+    '''Invoke a process asyncly.'''
     process = subprocess.Popen(args, stdout=stdout, stderr=stderr)
     out, err = process.communicate()
     retcode = process.poll()
@@ -77,6 +79,13 @@ def default_output_rule(input:str):
     '''Defines the format of output screenshots according to the input video.'''
     filename, _ = os.path.splitext(input)
     return f'{filename}_cap.png'
+
+def suppress_log(message:str, max_length=MAX_LOG_LENGTH):
+    '''Suppress logging output in case the content is too long.'''
+    if len(message) <= max_length:
+        return message
+    else:
+        return message[:max_length] + b'...'
 
 def escape_chars(text, chars, escape='\\'):
     """Helper function to escape uncomfortable characters."""
@@ -199,7 +208,7 @@ def capture_file(file:str, args, output_rule=None):
         logger.info(f'Running command...')
         _, err = run_async(cmd)
         if err:
-            logger.error(f'Error occured during capturing {file}:{NL}{err}')
+            logger.error(f'Error occured during capturing {file}:{NL}{suppress_log(err)}')
             return file, CaptureResult.CAPTURE_ERROR_OCCURED
         else:
             logger.info(f'Succeeded in capturing {file}. Time elapsed: {datetime.now()-begin}.')
