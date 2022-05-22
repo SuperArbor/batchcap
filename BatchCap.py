@@ -17,7 +17,7 @@ DEFAULT_FONTSIZE = 20
 DEFAULT_HEIGHT = 360
 FONTCOLOR = 'yellow'
 MAX_LOG_LENGTH = 1024
-MEMORY_PARA = 10
+MEMORY_PARA = 6
 
 if os.name == 'nt':
     FONTFILE = 'C:/Windows/Fonts/arial.ttf'
@@ -214,6 +214,8 @@ def capture_file_in_sequence(file:str, args, capture_info:dict):
             for i in range(c * r):
                 captured = f'{output_name}_{i}'
                 cmd = ['ffmpeg', '-ss', f'{seek + i*interval}', '-i', file, '-vf', f'scale=-1:{args.height}', '-frames:v', '1', '-loglevel', 'error', '-f', 'image2', captured, '-y']
+                if args.overwrite:
+                    cmd.append('-y')
                 _, err = run_async(cmd)
                 tmp_files.append(captured)
         except Exception as e:
@@ -391,7 +393,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-p', '--path',     type=str,   default=os.path.dirname(__file__),  help='Path of directory or file.')
     parser.add_argument('-s', '--seek',     type=float, default=0,                          help='Time of the first capture.')
-    parser.add_argument('-g', '--height',   type=int,   default=360,                        help='Height of each image in the capture.')
+    parser.add_argument('-g', '--height',   type=int,   default=270,                        help='Height of each image in the capture.')
     parser.add_argument('-t', '--tile',     type=str,   default='5x4',                      help='Tile shaple of the screen shots.')
     parser.add_argument('-o', '--overwrite',action='store_true',                            help='Whether or not overwrite existing files.')
     parser.add_argument('-i', '--timestamp',action='store_true',                            help='Whether or not show present timestamp on captures.')
