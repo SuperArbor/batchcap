@@ -72,9 +72,9 @@ def probe_file(file:str):
     video_info = next(s for s in probe['streams'] if s['codec_type'] == 'video')
     avg_frame_rate = video_info['avg_frame_rate']
     width, height = int(video_info['width']), int(video_info['height'])
-    if 'sample_aspect_ratio' in video_info.keys():
-        sw, sh = video_info['sample_aspect_ratio'].split(':')
-        width, height = int(width * float(sw)), int(height * float(sh))
+    # if 'sample_aspect_ratio' in video_info.keys():
+    #     sw, sh = video_info['sample_aspect_ratio'].split(':')
+    #     width, height = int(width * float(sw)), int(height * float(sh))
     if '/' in avg_frame_rate:
         a, b = avg_frame_rate.split('/')
         avg_frame_rate = float(a) / float(b)
@@ -93,7 +93,7 @@ def suppress_log(message:str, max_length=MAX_LOG_LENGTH):
     if len(message) <= max_length:
         return message
     else:
-        return message[:max_length] + b'...'
+        return message[:max_length] + '...'
 
 def escape_chars(text, chars, escape='\\'):
     """Helper function to escape uncomfortable characters."""
