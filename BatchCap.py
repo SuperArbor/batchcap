@@ -114,8 +114,8 @@ def capture_file(file:str, args, output_rule=None):
         '-ss', '10.0', '-i', 'video.mkv', 
         '-ss', '133.86', '-i', 'video.mkv', 
         '-filter_complex', 
-            '[0:v]scale=360:-1[a0];[a0]drawtext=fontcolor=yellow:fontfile=C\\\\:/Windows/Fonts/arial.ttf:fontsize=20:text=0\\\\:00\\\\:10:x=text_h:y=text_h[v0];
-            [1:v]scale=360:-1[a1];[a1]drawtext=fontcolor=yellow:fontfile=C\\\\:/Windows/Fonts/arial.ttf:fontsize=20:text=0\\\\:02\\\\:13.860000:x=text_h:y=text_h[v1];
+            '[0:v:0]scale=-1:360[a0];[a0]drawtext=fontcolor=yellow:fontfile=C\\\\:/Windows/Fonts/arial.ttf:fontsize=20:text=0\\\\:00\\\\:10:x=text_h:y=text_h[v0];
+            [1:v:0]scale=-1:360[a1];[a1]drawtext=fontcolor=yellow:fontfile=C\\\\:/Windows/Fonts/arial.ttf:fontsize=20:text=0\\\\:02\\\\:13.860000:x=text_h:y=text_h[v1];
             [v0][v1]xstack=inputs=2:layout=0_0.0|360_0.0[c]', 
         '-map', '[c]', 
         '-frames:v', '1', 
@@ -130,7 +130,7 @@ def capture_file(file:str, args, output_rule=None):
     ['ffmpeg',
         '-i', 'video.mkv', 
         '-filter_complex', 
-            '[0]select=not(mod(n - 0\, 308.0)) * not(lt(n\, 0))[s0];[s0]scale=360:-1[s1];[s1]tile=5x4[s2]',
+            '[0]select=not(mod(n - 0\, 308.0)) * not(lt(n\, 0))[s0];[s0]scale=-1:360[s1];[s1]tile=5x4[s2]',
         '-map', [s2],
         '-frames:v', '1', 
         '-loglevel', 'error', 
@@ -192,14 +192,14 @@ def capture_file(file:str, args, output_rule=None):
                 t = f'{h}:{m}:{float(s):.3f}'
                 return escape_chars(t, r"\'=:", r'\\')
             cmd.append (
-                        ''.join([f'[{i}:v]scale=-1:{args.height}[a{i}];[a{i}]drawtext=fontcolor={FONTCOLOR}:fontfile={fontfile}:fontsize={fontsize}:text={gettext(seek + i*interval)}:x=text_h:y=text_h[v{i}];' for i in range(c * r)]) 
+                        ''.join([f'[{i}:v:0]scale=-1:{args.height}[a{i}];[a{i}]drawtext=fontcolor={FONTCOLOR}:fontfile={fontfile}:fontsize={fontsize}:text={gettext(seek + i*interval)}:x=text_h:y=text_h[v{i}];' for i in range(c * r)]) 
                         + ''.join([f'[v{i}]' for i in range(c * r)])
                         + f'xstack=inputs={c * r}:layout='
                         + '|'.join([f'{i * width}_{j * height}' for j in range(r) for i in range(c)])
                         + '[c]')
         else:
             cmd.append (
-                        ''.join([f'[{i}:v]scale=-1:{args.height}[v{i}];' for i in range(c * r)]) 
+                        ''.join([f'[{i}:v:0]scale=-1:{args.height}[v{i}];' for i in range(c * r)]) 
                         + ''.join([f'[v{i}]' for i in range(c * r)])
                         + f'xstack=inputs={c * r}:layout='
                         + '|'.join([f'{i * width}_{j * height}' for j in range(r) for i in range(c)])
@@ -214,8 +214,8 @@ def capture_file(file:str, args, output_rule=None):
             cmd.extend([output_name])
         
         # Running command
-        # logger.info(f'Running command:{NL}{cmd}')
-        logger.info(f'Running command...')
+        logger.info(f'Capturing file {file}...')
+        logger.info(f'Running command:{NL}{cmd}')
         _, err = run_async(cmd)
         if err:
             logger.error(f'Error occured during capturing {file}:{NL}{suppress_log(err)}')
@@ -297,7 +297,7 @@ if __name__ == '__main__':
     parser.add_argument('-p', '--path',     type=str,   default=os.path.dirname(__file__),  help='Path of directory or file.')
     parser.add_argument('-s', '--seek',     type=float, default=0,                          help='Time of the first capture.')
     parser.add_argument('-g', '--height',   type=int,   default=360,                        help='Height of each image in the capture.')
-    parser.add_argument('-t', '--tile',     type=str,   default='5x4',                      help='Tile shaple of the screen shots.')
+    parser.add_argument('-t', '--tile',     type=str,   default='5x3',                      help='Tile shaple of the screen shots.')
     parser.add_argument('-o', '--overwrite',action='store_true',                            help='Whether or not overwrite existing files.')
     parser.add_argument('-i', '--timestamp',action='store_true',                            help='Whether or not show present timestamp on captures.')
     
