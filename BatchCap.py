@@ -1,7 +1,7 @@
 from enum import Enum
 import os, sys
 import argparse
-import subprocess
+from subprocess import Popen, PIPE
 from loguru import logger
 from Tree import *
 from traceback import format_exc
@@ -24,6 +24,11 @@ if os.name == 'nt':
 else:
     FONTFILE = '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc'
 
+def debugger_is_active() -> bool:
+    """Return if the debugger is currently active"""
+    gettrace = getattr(sys, 'gettrace', lambda : None) 
+    return gettrace() is not None
+
 class AsyncError(Exception):
     def __init__(self, cmd:str, out, err) -> None:
         self.cmd = cmd
@@ -42,9 +47,20 @@ class CaptureResult(Enum):
     def __str__(self) -> str:
         return self.name
 
-def run_async(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE):
-    '''Invoke a process asyncly.'''
-    process = subprocess.Popen(args, stdout=stdout, stderr=stderr)
+def run_async(args, stdin=PIPE, stdout=PIPE, stderr=PIPE, multiple=False):
+    '''Call the command(s) in another process.
+    multiple: whether there are more than one commands in cmds to be chained by pipes.
+    '''
+    if multiple:
+        process = None
+        for cmd in args:
+            if process:
+                process = Popen(cmd, stdin=process.stdout, stdout=stdout, stderr=stderr)
+            else:
+                process = Popen(cmd, stdin=stdin, stdout=stdout, stderr=stderr)
+    else:
+        process = Popen(args, stdin=stdin, stdout=stdout, stderr=stderr)
+    
     out, err = process.communicate()
     out, err = out.decode('utf-8'), err.decode('utf-8')
     retcode = process.poll()
@@ -191,7 +207,7 @@ def capture_file_once(file:str, args, capture_info:dict):
             logger.info(f'Succeeded in capturing {file}.')
             return CaptureResult.SUCCEEDED
     except Exception:
-        logger.error(format_exc())
+        logger.error(suppress_log(format_exc()))
         logger.info(f'Failed to capture {file}.')
         return CaptureResult.CAPTURE_FAILED
 
@@ -269,7 +285,91 @@ def capture_file_in_sequence(file:str, args, capture_info:dict):
         finally:
             [os.remove(f) for f in tmp_files]
     except Exception:
-        logger.error(format_exc())
+        logger.error(suppress_log(format_exc()))
+        logger.info(f'Failed to capture {file}.')
+        return CaptureResult.CAPTURE_FAILED
+
+def capture_file_in_sequence_(file:str, args, capture_info:dict):
+    '''Good idea but there are several problems.
+    To avoid memory shortage or when the command generated in capture_file_once is too long, 
+    the task is accomplished by splitting the command to several sub commands.
+    '''
+    def generate_inputs(f:str, c:int, r:int, i:int):
+        '''f: input file; c: columns; r: rows; i: index'''
+        if i == 0:
+            inputs = [
+                '-ss', f'{seek + i*interval}', 
+                '-i', f]
+        else:
+            inputs = [
+                # -ss in the following commands make the task fail
+                '-ss', f'{seek + i*interval}', 
+                '-i', f, '-i', '-']
+            
+        return inputs
+        
+    def generate_filter(c:int, r:int, w:int, h:int, ts:bool, i:int):
+        '''c: columns; r: rows; w: width; h: height; ts: timestamp; i: index'''
+        if ts:
+            fontfile = escape_chars(FONTFILE, r"\' =:", r'\\')
+            fontsize = min(max(DEFAULT_FONTSIZE * h // DEFAULT_HEIGHT, MIN_FONTSIZE), MAX_FONTSIZE)
+            def get_timestamp(t):
+                h, m, s = str(timedelta(seconds=t)).split(':')
+                t = f'{h}:{m}:{float(s):.3f}'
+                return escape_chars(t, r"\'=:", r'\\')
+        filter = ['-filter_complex']
+        
+        if i == 0:
+            if ts:
+                filter.append(f'[0:v:0]scale=-1:{h}[a];[a]drawtext=fontcolor={FONTCOLOR}:fontfile={fontfile}:fontsize={fontsize}:text={get_timestamp(seek + i*interval)}:x=text_h:y=text_h[v];[v]pad=iw*{c}:ih*{r}:0:0[c]')
+            else:
+                filter.append(f'[0:v:0]scale=-1:{h}[v];[v]pad=iw*{c}:ih*{r}:0:0[c]')
+        else:
+            if ts:
+                filter.append(f'[0:v:0]scale=-1:{h}[a];[a]drawtext=fontcolor={FONTCOLOR}:fontfile={fontfile}:fontsize={fontsize}:text={get_timestamp(seek + i*interval)}:x=text_h:y=text_h[v];[1][v]overlay={i%c * w}:{i//c * h}[c]')
+            else:
+                filter.append(f'[0:v:0]scale=-1:{h}[v];[1][v]overlay={i%c * w}:{i//c * h}[c]')
+            
+        return filter
+    
+    def generate_output(o:str, c:int, r:int, ow:bool, i:int):
+        '''o: output file; c: columns; r: rows; ow: overwrite; i: index'''
+        if i != c * r - 1:
+            output = ['-f', 'image2pipe', '-']
+        else:
+            output = ['-f', 'image2', o]
+            if ow:
+                output.append('-y')
+        return output
+            
+    try:
+        # Generating first command
+        output_name = capture_info['output_name']
+        seek = capture_info['seek']
+        interval = capture_info['interval']
+        width, height = capture_info['width'], capture_info['height']
+        columns, rows = capture_info['columns'], capture_info['rows']
+        
+        cmds = []
+        for i in range(0, columns * rows):
+            cmd = ['ffmpeg']
+            cmd.extend(generate_inputs(file, columns, rows, i)) 
+            cmd.extend(generate_filter(columns, rows, width, height, args.timestamp, i))
+            cmd.extend(['-map', '[c]', '-frames:v', '1', '-loglevel', 'error'])
+            cmd.extend(generate_output(output_name, columns, rows, args.overwrite, i))
+            cmds.append(cmd)
+        
+        # Run commands
+        _, err = run_async(cmds, multiple=True)
+        
+        if err:
+            logger.error(f'Error occured during capturing {file}:{NL}{suppress_log(err)}')
+            return CaptureResult.CAPTURE_ERROR_OCCURED
+        else:
+            logger.info(f'Succeeded in capturing {file}.')
+            return CaptureResult.SUCCEEDED
+    except Exception:
+        logger.error(suppress_log(format_exc()))
         logger.info(f'Failed to capture {file}.')
         return CaptureResult.CAPTURE_FAILED
 
@@ -307,7 +407,7 @@ def capture_file(file:str, args, output_rule=None):
         
         info_txt = f"size: {size:.2f} MB, duration: {timedelta(seconds=info['duration'])}, ratio: { info['width']} x {info['height']}, average frame rate: {info['avg_frame_rate']:.3f}"
     except Exception:
-        logger.error(format_exc())
+        logger.error(suppress_log(format_exc()))
         logger.info(f'Failed to probe {file}.')
         return file, CaptureResult.PROBE_FAILED
     
@@ -416,6 +516,9 @@ if __name__ == '__main__':
         if c < 1 or r < 1:
             logger.error(f'Invalid argument "-t/--tile". Tile {args.tile} invalid.')
             sys.exit(1)
+        if debugger_is_active():
+            args.overwrite = True
+            args.timestamp = True
     except Exception:
         logger.error(f'Failed to parse arguments.')
         sys.exit(1)
