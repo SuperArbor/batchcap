@@ -185,7 +185,7 @@ def capture_file_once_cmd(file:str, args, capture_info:dict):
                             [b{i}]format=rgba[c{i}];[c{i}]pad=iw+2*{pad}:ih+2*{pad}:{pad}:{pad}:color=#00000000[v{i}];' for i in range(c * r)]) 
                     + ''.join([f'[v{i}]' for i in range(c * r)])
                     + f'xstack=inputs={c * r}:layout='
-                    + '|'.join([f'{i * width}_{j * height}' for j in range(r) for i in range(c)])
+                    + '|'.join([f'{i * (width + pad * 2)}_{j * (height + pad * 2)}' for j in range(r) for i in range(c)])
                     + '[c]')
         
     cmd.extend(['-map', '[c]'])
@@ -490,7 +490,7 @@ if __name__ == '__main__':
             sys.exit(1)
         c, r = args.tile.split('x')
         c, r = int(c), int(r)
-        if c < 1 or r < 1:
+        if c < 1 or r < 1 or (c == 1 and r == 1):
             logger.error(f'Invalid argument "-t/--tile". Tile {args.tile} invalid.')
             sys.exit(1)
         if not is_photo(args.format):
@@ -536,6 +536,4 @@ if __name__ == '__main__':
     
     end = datetime.now()
     logger.info(f'Task end at {end}. Total time elapsed: {end-begin}.')
-    
-    
     

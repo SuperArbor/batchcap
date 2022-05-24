@@ -18,13 +18,13 @@ The arguments below are used to specify the input and output behaviors.
 
 *-g / --height* (type: integer, default: 270): The height of each captured image (in pixels).
 
-*-t / --tile* (type: string, default value: "5x4"): Shape of the tile made up from the captured images with format "cxr" where c stands for columns and r stands for rows.
+*-t / --tile* (type: string, default value: "5x4"): Shape of the tile made up from the captured images with format "cxr" where c stands for columns and r stands for rows. "1x1" is not allowed.
 
 *-s / --seek* (type: float, default: 0): Time of the first capture (in seconds).
 
-*-i / --timestamp* (store true): Whether or not show present timestamp on captures. This option needs no parameters. To opt out overwriting, just ommit this argument.
+*-i / --timestamp* (store true): Whether or not show present timestamp on captures. This option needs no parameters. To opt out overwriting, just omit this argument.
 
-*-o / --overwrite* (store true): Whether or not overwrite the existing files. This option needs no parameters. To opt out overwriting, just ommit this argument.
+*-o / --overwrite* (store true): Whether or not overwrite the existing files. This option needs no parameters. To opt out overwriting, just omit this argument.
 
 *-f / --format* (type: str, default: "png"): Output format. Should be one of the image file extensions, i.e. png, bmp, jpg and so forth.
 
