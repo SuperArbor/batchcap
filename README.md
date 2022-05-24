@@ -30,7 +30,7 @@ The arguments below are used to specify the input and output behaviors.
 
 *-c / --fontcolor* (type: str, default: "yellow"): Font color of the timestamp. For example, "red" or "0#00000000".
 
-*-r / --padratio* (type: float, default: 0.01): Ratio of padding against long edge of each image.
+*-r / --padratio* (type: float, default: 0.01): Ratio of padding against short edge of each image.
 
 *-n / --fontratio* (type: float, default: 0.08): Ratio of padding against short edge of each image.
 
