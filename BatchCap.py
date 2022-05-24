@@ -478,7 +478,8 @@ def check_ffmpeg():
     cmd = ['ffmpeg', '-version']
     try:
         out, _ = run_async(cmd)
-        search = re.search(r'ffmpeg version (\d.\d.\d)', out, re.I | re.M)
+        # \D matches non-digitals for cases like "ffmpeg version n5.0.1"
+        search = re.search(r'ffmpeg version \D*(\d.\d.\d)', out, re.I)
         if search:
             version = search.group(1)
             main_version = int(version.split('.')[0])
