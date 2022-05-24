@@ -430,9 +430,7 @@ def capture_file(file:str, args, output_rule=None):
     return file, result
 
 def capture(file:str, args, output_rule=None):
-    begin = datetime.now()
-    
-    logger.info(f'Start task at {begin}.')
+    '''Entry of the capture tasks.'''
     if os.path.isdir(file):
         tree_input = inspect_dir(file)
         nodes = tree_input.walk(lambda n: (not n.is_dir()) and is_video(n.id))
@@ -445,9 +443,6 @@ def capture(file:str, args, output_rule=None):
             yield capture_file(file, args, output_rule)
     else:
         yield capture_file(file, args, output_rule)
-        
-    end = datetime.now()
-    logger.info(f'End task. Total time elapsed: {end-begin}.')
 
 def inspect_dir(dir:str, tree:NodeDir=None) -> NodeDir:
     if tree == None:
@@ -549,6 +544,9 @@ if __name__ == '__main__':
         sys.exit(1)
     
     args.path = args.path.replace('\\', SEP)
+    begin = datetime.now()
+    logger.info(f'Task start at {begin}.')
+    
     output = list(capture(args.path, args=args))
     if output:
         count_succeeded = 0
@@ -564,13 +562,16 @@ if __name__ == '__main__':
                 count_error += 1
             else:
                 count_failed += 1
-            
+        
+        # Reporting result
+        logger.info(NL.join([f'{result}:\t{file}' for file, result in output]))
         logger.info(f'Succeeded: {count_succeeded}{NL}' 
                     + f'Skipped: {count_skipped}{NL}' 
                     + f'Completed with error: {count_error}{NL}' 
                     + f'Failed: {count_failed}')
-        
-        logger.info(NL.join([f'{result}:\t{file}' for file, result in output]))
+    
+    end = datetime.now()
+    logger.info(f'Task end at {end}. Total time elapsed: {end-begin}.')
     
     
     
