@@ -20,7 +20,8 @@ FONTCOLOR = 'yellow'
 MAX_LOG_LENGTH = 2048           # Maximum length of an entry of logging
 MEMORY_PARA = 6                 # Coefficient to decide the capture method to call
 MIN_FFMPEG_MAIN_VERSION = 5
-PADDING_RATIO = 0.01            # ratio of padding against the length of short edge of scaled images
+PADDING_RATIO = 0.01            # ratio of padding against the length of long edge of scaled images
+MIN_PADDING = 2                 # Minimal padding
 
 if os.name == 'nt':
     FONTFILE = 'C:/Windows/Fonts/arial.ttf'
@@ -164,7 +165,7 @@ def capture_file_once(file:str, args, capture_info:dict):
         interval = capture_info['interval']
         width, height = capture_info['width'], capture_info['height']
         c, r = capture_info['columns'], capture_info['rows']
-        pad = int(PADDING_RATIO * min(width, height))
+        pad = max(int(PADDING_RATIO * max(width, height)), MIN_PADDING)
         
         # Generating command
         cmd = ['ffmpeg']
@@ -226,7 +227,7 @@ def capture_file_in_sequence(file:str, args, capture_info:dict):
             interval = capture_info['interval']
             width, height = capture_info['width'], capture_info['height']
             c, r = capture_info['columns'], capture_info['rows']
-            pad = int(PADDING_RATIO * min(width, height))
+            pad = max(int(PADDING_RATIO * max(width, height)), MIN_PADDING)
             
             tmp_files = []
             tmp_dir = tempfile.gettempdir()
