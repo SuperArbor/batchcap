@@ -230,7 +230,14 @@ def capture_file_in_sequence(file:str, args, capture_info:dict):
             # Generating images
             for i in range(c * r):
                 captured = os.path.join(tmp_dir, f'{os.path.basename(output_name)}_{i}').replace('\\', SEP)
-                cmd = ['ffmpeg', '-ss', f'{seek + i*interval}', '-i', file, '-vf', f'scale=-1:{args.height}', '-frames:v', '1', '-loglevel', 'error', '-f', 'image2', captured, '-y']
+                cmd = ['ffmpeg', 
+                        '-ss', f'{seek + i*interval}', '-i', file, 
+                        '-filter_complex', f'[0:v:0]scale=-1:{args.height}[c]', 
+                        '-map', '[c]', 
+                        '-frames:v', '1', 
+                        '-loglevel', 'error', 
+                        '-f', 'image2', 
+                        captured, '-y']
                 if args.overwrite:
                     cmd.append('-y')
                 _, err = run_async(cmd)
@@ -298,14 +305,10 @@ def capture_file_in_sequence_(file:str, args, capture_info:dict):
     def generate_inputs(f:str, c:int, r:int, i:int):
         '''f: input file; c: columns; r: rows; i: index'''
         if i == 0:
-            inputs = [
-                '-ss', f'{seek + i*interval}', 
-                '-i', f]
+            inputs = ['-ss', f'{seek + i*interval}', '-i', f]
         else:
-            inputs = [
-                # -ss in the following commands make the task fail
-                '-ss', f'{seek + i*interval}', 
-                '-i', f, '-i', '-']
+            # -ss in the following commands make the task fail
+            inputs = ['-ss', f'{seek + i*interval}', '-i', f, '-i', '-']
             
         return inputs
         
