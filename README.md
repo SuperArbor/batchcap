@@ -55,7 +55,7 @@ On Windows, although both cmd.exe and powershell.exe can do the job, powershell 
 # -t 5x4    The screenshot is made up of 20 captured images with 5 columns and 4 rows.
 # -o        Overwrite existing files with the same file name with the output files.
 # -f png    Output png format picture.
-path_to_python path_to_batchcap.py -p path_to_folder_or_file -s 1 -i -c yellow -n 0.08 -g 270 -r 0.01 -t 5x4 -o -f png
+path_to_python path_to_batchcap.py -p path -s 1 -i -c yellow -n 0.08 -g 270 -r 0.01 -t 5x4 -o -f png
 ```
 
 #### Run with script
