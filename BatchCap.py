@@ -126,9 +126,9 @@ def capture_file_once_cmd(file:str, args, capture_info:dict):
         '-ss', '10.0', '-i', 'video.mkv', 
         '-ss', '133.86', '-i', 'video.mkv', 
         '-filter_complex', 
-            '[0:v:0]scale=-1:360[a0];[a0]drawtext=fontcolor=yellow:fontfile=C\\\\:/Windows/Fonts/arial.ttf:fontsize=20:text=0\\\\:00\\\\:10:x=text_h:y=text_h[v0];
-            [1:v:0]scale=-1:360[a1];[a1]drawtext=fontcolor=yellow:fontfile=C\\\\:/Windows/Fonts/arial.ttf:fontsize=20:text=0\\\\:02\\\\:13.860000:x=text_h:y=text_h[v1];
-            [v0][v1]xstack=inputs=2:layout=0_0.0|360_0.0[c]', 
+            '[0:v:0]scale=-1:270[a0];[a0]drawtext=fontcolor=yellow:fontfile=C\\\\:/Windows/Fonts/arial.ttf:fontsize=20:text=0\\\\:00\\\\:10:x=text_h:y=text_h[v0];
+            [1:v:0]scale=-1:270[a1];[a1]drawtext=fontcolor=yellow:fontfile=C\\\\:/Windows/Fonts/arial.ttf:fontsize=20:text=0\\\\:02\\\\:13.860000:x=text_h:y=text_h[v1];
+            [v0][v1]xstack=inputs=2:layout=0_0.0|270_0.0[c]', 
         '-map', '[c]', 
         '-frames:v', '1', 
         '-loglevel', 'error', 
@@ -142,7 +142,7 @@ def capture_file_once_cmd(file:str, args, capture_info:dict):
     ['ffmpeg',
         '-i', 'video.mkv', 
         '-filter_complex', 
-            '[0]select=not(mod(n - 0\, 308.0)) * not(lt(n\, 0))[s0];[s0]scale=-1:360[s1];[s1]tile=5x4[s2]',
+            '[0]select=not(mod(n - 0\, 308.0)) * not(lt(n\, 0))[s0];[s0]scale=-1:270[s1];[s1]tile=5x4[s2]',
         '-map', [s2],
         '-frames:v', '1', 
         '-loglevel', 'error', 

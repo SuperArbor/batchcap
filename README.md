@@ -45,12 +45,17 @@ Run the following line in powershell (Windows) or bash (Linux).
 On Windows, although both cmd.exe and powershell.exe can do the job, powershell is more recommended. cmd.exe does not support UNC directory, which may make the tool fail if the files to be captured are on a remote device.
 
 ```powershell
-# This command captures screenshot(s) of path_to_folder_or_file (or the videos under the folder).
-# The screenshot is made up of 20 captured images with 5 columns and 4 rows.
-# The height of each image is 360 pixels (the ratio is remained the same as the source video).
-# The capture begins at second 10.0 in the video.
-# Overwrite existing files with the same file name with the output files.
-path_to_python path_to_batchcap.py -p path_to_folder_or_file -s 10 -o -i -g 270 -f png -c yellow -r 0.01 -n 0.08 -t 5x4
+# -p yellow This command captures screenshot(s) of path_to_folder_or_file (or the videos under the folder).
+# -s 1      The capture begins at second 1.0 in the video.
+# -i        Embed timestamp on the captures.
+# -c yellow timestamp font color is yellow.
+# -n 0.08   timestamp font size is 0.08 * min(width, height).
+# -g 270    The height of each image is 270 pixels (the ratio is remained the same as the source video).
+# -r 0.01   padding is to be set as 0.01 * min(width, height), where width and height are the width and heigth of a frame of image.
+# -t 5x4    The screenshot is made up of 20 captured images with 5 columns and 4 rows.
+# -o        Overwrite existing files with the same file name with the output files.
+# -f png    Output png format picture.
+path_to_python path_to_batchcap.py -p path_to_folder_or_file -s 1 -i -c yellow -n 0.08 -g 270 -r 0.01 -t 5x4 -o -f png
 ```
 
 #### Run with script
@@ -109,7 +114,7 @@ function Replace {
 
 # GetAnsVal and Replace make sure powershell output correctly. 
 # Replace ForEach-Object {& GetAnsVal $_ | & Replace} with ForEach-Object {"$_"} to see the difference.
-& path_to_python path_to_batchcap.py -p $PSScriptRoot -s 10 -o -i -g 270 -f png -c yellow -r 0.01 -n 0.08 -t 5x4 2>&1 | ForEach-Object {& GetAnsVal $_ | & Replace}
+& path_to_python path_to_batchcap.py -p $PSScriptRoot -s 1 -i -c yellow -n 0.08 -g 270 -r 0.01 -t 5x4 -o -f png 2>&1 | ForEach-Object {& GetAnsVal $_ | & Replace}
 
 pause
 ```
@@ -119,5 +124,5 @@ On Linux, use a bash script (with extension ".sh").
 ```bash
 #!/bin/bash
 
-path_to_python path_to_batchcap.py -p $(dirname $BASH_SOURCE) -s 10 -o -i -g 270 -f png -c yellow -r 0.01 -n 0.08 -t 5x4
+path_to_python path_to_batchcap.py -p $(dirname $BASH_SOURCE) -s 1 -i -c yellow -n 0.08 -g 270 -r 0.01 -t 5x4 -o -f png
 ```
