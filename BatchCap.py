@@ -1,5 +1,7 @@
 from enum import Enum
-import os, sys
+import os, sys, tempfile
+import json, re
+import psutil
 import argparse
 from subprocess import Popen, PIPE
 from loguru import logger
@@ -7,9 +9,7 @@ from Tree import *
 from traceback import format_exc
 from tqdm import tqdm
 from datetime import datetime, timedelta
-import json
-import psutil
-import re
+from fractions import Fraction
 
 NL = '\n'
 MIN_FONTSIZE = 1
@@ -88,22 +88,17 @@ def probe_file(file:str):
         
     probe = json.loads(out)
     video_info = next(s for s in probe['streams'] if s['codec_type'] == 'video')
-    avg_frame_rate = video_info['avg_frame_rate']
-    r_frame_rate = video_info.get('r_frame_rate')
-    width, height = int(video_info['width']), int(video_info['height'])
-    # if 'sample_aspect_ratio' in video_info.keys():
-    #     sw, sh = video_info['sample_aspect_ratio'].split(':')
-    #     width, height = int(width * float(sw)), int(height * float(sh))
-    if avg_frame_rate != '0/0':
-        a, b = avg_frame_rate.split('/')
-        avg_frame_rate = float(a) / float(b)
-    else:
-        a, b = r_frame_rate.split('/')
-        avg_frame_rate = float(a) / float(b)
+    try:
+        avg_frame_rate = Fraction(video_info['avg_frame_rate'])
+        frame_rate = float(avg_frame_rate.numerator / avg_frame_rate.denominator)
+    except ZeroDivisionError:
+        r_frame_rate = Fraction(video_info['r_frame_rate'])
+        frame_rate = float(r_frame_rate.numerator / r_frame_rate.denominator)
         
+    width, height = int(video_info['width']), int(video_info['height'])
     duration = float(probe['format']['duration'])
     size = float(probe['format']['size'])
-    return {'avg_frame_rate': avg_frame_rate, 'width': width, 'height': height, 'duration': duration, 'size': size}
+    return {'avg_frame_rate': frame_rate, 'width': width, 'height': height, 'duration': duration, 'size': size}
 
 def default_output_rule(file:str):
     '''Defines the format of output screenshots according to the input video.'''
@@ -231,9 +226,10 @@ def capture_file_in_sequence(file:str, args, capture_info:dict):
             c, r = capture_info['columns'], capture_info['rows']
             
             tmp_files = []
+            tmp_dir = tempfile.gettempdir()
             # Generating images
             for i in range(c * r):
-                captured = f'{output_name}_{i}'
+                captured = os.path.join(tmp_dir, f'{os.path.basename(output_name)}_{i}').replace('\\', SEP)
                 cmd = ['ffmpeg', '-ss', f'{seek + i*interval}', '-i', file, '-vf', f'scale=-1:{args.height}', '-frames:v', '1', '-loglevel', 'error', '-f', 'image2', captured, '-y']
                 if args.overwrite:
                     cmd.append('-y')
