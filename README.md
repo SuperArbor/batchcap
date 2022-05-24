@@ -45,7 +45,7 @@ Run the following line in powershell (Windows) or bash (Linux).
 On Windows, although both cmd.exe and powershell.exe can do the job, powershell is more recommended. cmd.exe does not support UNC directory, which may make the tool fail if the files to be captured are on a remote device.
 
 ```powershell
-# -p yellow This command captures screenshot(s) of path_to_folder_or_file (or the videos under the folder).
+# -p path   Captures screenshot(s) of file named path (or the videos under the folder named path).
 # -s 1      The capture begins at second 1.0 in the video.
 # -i        Embed timestamp on the captures.
 # -c yellow timestamp font color is yellow.
