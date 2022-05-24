@@ -359,14 +359,14 @@ def capture_file(file:str, args, output_rule=None):
                 _, err = run_async(cmd)
                 if err:
                     logger.error(f'Error occured during capturing {file}:{NL}{suppress_log(err)}')
-                    return file, CaptureResult.CAPTURE_ERROR_OCCURED
+                    result = CaptureResult.CAPTURE_ERROR_OCCURED
                 else:
                     logger.info(f'Succeeded in capturing {file}.')
-                    return file, CaptureResult.SUCCEEDED
+                    result = CaptureResult.SUCCEEDED
             except Exception:
                 logger.error(suppress_log(format_exc()))
                 logger.info(f'Failed to capture {file}.')
-                return file, CaptureResult.CAPTURE_FAILED
+                result = CaptureResult.CAPTURE_FAILED
         else:
             logger.info(f'Command too long. Switch to sequnce command mode.')
             result = capture_file_in_sequence(file, args, capture_info)
