@@ -2,7 +2,7 @@
 
 A convenient batch capture tool for both Windows and Linux. Below is an example.
 
-![Sample](https://user-images.githubusercontent.com/11332363/169688174-e5960191-05d4-423e-9148-828498a290fd.png)
+![sample](https://user-images.githubusercontent.com/11332363/170000099-af35b0f9-02ff-484c-b024-74f882c4c980.png)
 
 ## Prerequisites
 
