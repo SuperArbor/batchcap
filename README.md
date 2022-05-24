@@ -32,7 +32,7 @@ The arguments below are used to specify the input and output behaviors.
 
 *-r / --padratio* (type: float, default: 0.01): Ratio of padding against short edge of each image.
 
-*-n / --fontratio* (type: float, default: 0.08): Ratio of padding against short edge of each image.
+*-n / --fontratio* (type: float, default: 0.08): Ratio of font size against short edge of each image.
 
 ### Run the tool
 

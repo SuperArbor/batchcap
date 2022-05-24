@@ -420,10 +420,7 @@ def sort_tree(tree:NodeDir):
         sort_tree(tree)
 
 def is_video(file:str) -> bool:
-    return file.endswith(('.mp4', '.mkv', '.avi', '.mov', '.wmv', '.m4v', '.flv', '.rmvb'))
-
-def is_photo(extension:str) -> bool:
-    return extension in ('png', 'bmp', 'gif', 'jpg', 'jpeg')
+    return file.endswith(('.mp4', '.mkv', '.avi', '.mov', '.wmv', '.m4v', '.flv', '.rmvb', 'rm', 'ts', 'm2ts'))
 
 def check_ffmpeg():
     '''Return the installed ffmpeg version and whether it meets the requirement.'''
@@ -493,9 +490,6 @@ if __name__ == '__main__':
         if c < 1 or r < 1 or (c == 1 and r == 1):
             logger.error(f'Invalid argument "-t/--tile". Tile {args.tile} invalid.')
             sys.exit(1)
-        if not is_photo(args.format):
-            logger.warning(f'Specified format {args.format} is not a valid image format, will use "png" instead.')
-            args.format = 'png'
         if args.padratio < 0:
             args.padratio = 0.01
         if args.fontratio < 0:
