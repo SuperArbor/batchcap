@@ -9,6 +9,7 @@ from tqdm import tqdm
 from datetime import datetime, timedelta
 import json
 import psutil
+import re
 
 NL = '\n'
 MIN_FONTSIZE = 1
@@ -16,8 +17,9 @@ MAX_FONTSIZE = 999
 DEFAULT_FONTSIZE = 20
 DEFAULT_HEIGHT = 360
 FONTCOLOR = 'yellow'
-MAX_LOG_LENGTH = 1024
+MAX_LOG_LENGTH = 2048
 MEMORY_PARA = 6
+MIN_FFMPEG_MAIN_VERSION = 5
 
 if os.name == 'nt':
     FONTFILE = 'C:/Windows/Fonts/arial.ttf'
@@ -87,15 +89,18 @@ def probe_file(file:str):
     probe = json.loads(out)
     video_info = next(s for s in probe['streams'] if s['codec_type'] == 'video')
     avg_frame_rate = video_info['avg_frame_rate']
+    r_frame_rate = video_info.get('r_frame_rate')
     width, height = int(video_info['width']), int(video_info['height'])
     # if 'sample_aspect_ratio' in video_info.keys():
     #     sw, sh = video_info['sample_aspect_ratio'].split(':')
     #     width, height = int(width * float(sw)), int(height * float(sh))
-    if '/' in avg_frame_rate:
+    if avg_frame_rate != '0/0':
         a, b = avg_frame_rate.split('/')
         avg_frame_rate = float(a) / float(b)
     else:
-        avg_frame_rate = float(avg_frame_rate)
+        a, b = r_frame_rate.split('/')
+        avg_frame_rate = float(a) / float(b)
+        
     duration = float(probe['format']['duration'])
     size = float(probe['format']['size'])
     return {'avg_frame_rate': avg_frame_rate, 'width': width, 'height': height, 'duration': duration, 'size': size}
@@ -475,7 +480,28 @@ def sort_tree(tree:NodeDir):
 def is_video(file:str) -> bool:
     return file.endswith(('.mp4', '.mkv', '.avi', '.mov', '.wmv', '.m4v', '.flv', '.rmvb'))
 
+def check_ffmpeg():
+    cmd = ['ffmpeg', '-version']
+    try:
+        out, _ = run_async(cmd)
+        search = re.search(r'ffmpeg version (\d.\d.\d)', out, re.I | re.M)
+        if search:
+            version = search.group(1)
+            main_version = int(version.split('.')[0])
+            return main_version >= MIN_FFMPEG_MAIN_VERSION, version
+        else:
+            return False, 'unknown'
+    except:
+        return False, 'uninstalled'
+
 if __name__ == '__main__':
+    valid, version = check_ffmpeg()
+    if valid:
+        logger.info(f'ffmpeg {version} available.')
+    else:
+        logger.error(f'Not able to find a valid ffmpeg. ffmpeg with minimal version {MIN_FFMPEG_MAIN_VERSION} is required. The ffmpeg installed is {version}.')
+        sys.exit(1)
+    
     log_file = os.path.join(os.path.dirname(__file__), 'cap_log.log')
     log_format_console = "\n<level>{message}</level>\n"
     log_format_file = (
