@@ -26,6 +26,14 @@ The arguments below are used to specify the input and output behaviors.
 
 *-o / --overwrite* (store true): Whether or not overwrite the existing files. This option needs no parameters. To opt out overwriting, just ommit this argument.
 
+*-f / --format* (type: str, default: "png"): Output format. Should be one of the image file extensions, i.e. png, bmp, jpg and so forth.
+
+*-c / --fontcolor* (type: str, default: "yellow"): Font color of the timestamp. For example, "red" or "0#00000000".
+
+*-r / --padratio* (type: float, default: 0.01): Ratio of padding against long edge of each image.
+
+*-n / --fontratio* (type: float, default: 0.08): Ratio of padding against short edge of each image.
+
 ### Run the tool
 
 You can choose to run the tool with command or with script. Usually when there is only one video to be captured, running with command is more handy, otherwise running with a script is more convenient.
@@ -42,7 +50,7 @@ On Windows, although both cmd.exe and powershell.exe can do the job, powershell 
 # The height of each image is 360 pixels (the ratio is remained the same as the source video).
 # The capture begins at second 10.0 in the video.
 # Overwrite existing files with the same file name with the output files.
-path_to_python path_to_batchcap.py -p path_to_folder_or_file -s 10 -o -i -g 270 -t 5x4
+path_to_python path_to_batchcap.py -p path_to_folder_or_file -s 10 -o -i -g 270 -f png -c yellow -r 0.01 -n 0.08 -t 5x4
 ```
 
 #### Run with script
@@ -101,7 +109,7 @@ function Replace {
 
 # GetAnsVal and Replace make sure powershell output correctly. 
 # Replace ForEach-Object {& GetAnsVal $_ | & Replace} with ForEach-Object {"$_"} to see the difference.
-& path_to_python path_to_batchcap.py -p $PSScriptRoot -s 10 -o -i -g 270 -t 5x4 2>&1 | ForEach-Object {& GetAnsVal $_ | & Replace}
+& path_to_python path_to_batchcap.py -p $PSScriptRoot -s 10 -o -i -g 270 -f png -c yellow -r 0.01 -n 0.08 -t 5x4 2>&1 | ForEach-Object {& GetAnsVal $_ | & Replace}
 
 pause
 ```
@@ -111,5 +119,5 @@ On Linux, use a bash script (with extension ".sh").
 ```bash
 #!/bin/bash
 
-path_to_python path_to_batchcap.py -p $(dirname $BASH_SOURCE) -s 10 -o -i -g 270 -t 5x4
+path_to_python path_to_batchcap.py -p $(dirname $BASH_SOURCE) -s 10 -o -i -g 270 -f png -c yellow -r 0.01 -n 0.08 -t 5x4
 ```

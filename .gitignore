@@ -12,4 +12,7 @@ __pycache__
 *.mov
 *.m4v
 *.png
+*.jpg
+*.bmp
+
 

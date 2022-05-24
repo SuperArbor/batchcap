@@ -10,18 +10,14 @@ from traceback import format_exc
 from tqdm import tqdm
 from datetime import datetime, timedelta
 from fractions import Fraction
+from itertools import accumulate
 
 NL = '\n'
 MIN_FONTSIZE = 1
 MAX_FONTSIZE = 999
-DEFAULT_FONTSIZE = 20
-DEFAULT_HEIGHT = 270
-FONTCOLOR = 'yellow'
 MAX_LOG_LENGTH = 2048           # Maximum length of an entry of logging
 MEMORY_PARA = 6                 # Coefficient to decide the capture method to call
 MIN_FFMPEG_MAIN_VERSION = 5
-PADDING_RATIO = 0.01            # ratio of padding against the length of long edge of scaled images
-MIN_PADDING = 2                 # Minimal padding
 
 if os.name == 'nt':
     FONTFILE = 'C:/Windows/Fonts/arial.ttf'
@@ -102,10 +98,6 @@ def probe_file(file:str):
     size = float(probe['format']['size'])
     return {'avg_frame_rate': frame_rate, 'width': width, 'height': height, 'duration': duration, 'size': size}
 
-def default_output_rule(file:str):
-    '''Defines the format of output screenshots according to the input video.'''
-    return f'{file}.cap.png'
-
 def suppress_log(message:str, max_length=MAX_LOG_LENGTH):
     '''Suppress logging output in case the content is too long.'''
     if len(message) <= max_length:
@@ -165,7 +157,8 @@ def capture_file_once(file:str, args, capture_info:dict):
         interval = capture_info['interval']
         width, height = capture_info['width'], capture_info['height']
         c, r = capture_info['columns'], capture_info['rows']
-        pad = max(int(PADDING_RATIO * max(width, height)), MIN_PADDING)
+        pad = capture_info['pad']
+        fontsize = capture_info['fontsize']
         
         # Generating command
         cmd = ['ffmpeg']
@@ -175,20 +168,22 @@ def capture_file_once(file:str, args, capture_info:dict):
         cmd.append('-filter_complex')
         if args.timestamp:
             fontfile = escape_chars(FONTFILE, r"\' =:", r'\\')
-            fontsize = min(max(DEFAULT_FONTSIZE * height // DEFAULT_HEIGHT, MIN_FONTSIZE), MAX_FONTSIZE)
             def get_timestamp(t):
                 h, m, s = str(timedelta(seconds=t)).split(':')
                 t = f'{h}:{m}:{float(s):.3f}'
                 return escape_chars(t, r"\'=:", r'\\')
             cmd.append (
-                        ''.join([f'[{i}:v:0]scale=-1:{args.height}[a{i}];[a{i}]drawtext=fontcolor={FONTCOLOR}:fontfile={fontfile}:fontsize={fontsize}:text={get_timestamp(seek + i*interval)}:x=text_h:y=text_h[b{i}];[b{i}]format=rgba[c{i}];[c{i}]pad=iw+2*{pad}:ih+2*{pad}:{pad}:{pad}:color=#00000000[v{i}];' for i in range(c * r)]) 
+                        ''.join([f'[{i}:v:0]scale=-1:{args.height}[a{i}];\
+                                    [a{i}]drawtext=fontcolor={args.fontcolor}:fontfile={fontfile}:fontsize={fontsize}:text={get_timestamp(seek + i*interval)}:x=text_h:y=text_h[b{i}];\
+                                    [b{i}]format=rgba[c{i}];[c{i}]pad=iw+2*{pad}:ih+2*{pad}:{pad}:{pad}:color=#00000000[v{i}];' for i in range(c * r)]) 
                         + ''.join([f'[v{i}]' for i in range(c * r)])
                         + f'xstack=inputs={c * r}:layout='
                         + '|'.join([f'{i * (width + pad * 2)}_{j * (height + pad * 2)}' for j in range(r) for i in range(c)])
                         + '[c]')
         else:
             cmd.append (
-                        ''.join([f'[{i}:v:0]scale=-1:{args.height}[b{i}];[b{i}]format=rgba[c{i}];[c{i}]pad=iw+2*{pad}:ih+2*{pad}:{pad}:{pad}:color=#00000000[v{i}];' for i in range(c * r)]) 
+                        ''.join([f'[{i}:v:0]scale=-1:{args.height}[b{i}];\
+                                [b{i}]format=rgba[c{i}];[c{i}]pad=iw+2*{pad}:ih+2*{pad}:{pad}:{pad}:color=#00000000[v{i}];' for i in range(c * r)]) 
                         + ''.join([f'[v{i}]' for i in range(c * r)])
                         + f'xstack=inputs={c * r}:layout='
                         + '|'.join([f'{i * width}_{j * height}' for j in range(r) for i in range(c)])
@@ -227,7 +222,8 @@ def capture_file_in_sequence(file:str, args, capture_info:dict):
             interval = capture_info['interval']
             width, height = capture_info['width'], capture_info['height']
             c, r = capture_info['columns'], capture_info['rows']
-            pad = max(int(PADDING_RATIO * max(width, height)), MIN_PADDING)
+            pad = capture_info['pad']
+            fontsize = capture_info['fontsize']
             
             tmp_files = []
             tmp_dir = tempfile.gettempdir()
@@ -258,13 +254,13 @@ def capture_file_in_sequence(file:str, args, capture_info:dict):
             cmd.append('-filter_complex')
             if args.timestamp:
                 fontfile = escape_chars(FONTFILE, r"\' =:", r'\\')
-                fontsize = min(max(DEFAULT_FONTSIZE * height // DEFAULT_HEIGHT, MIN_FONTSIZE), MAX_FONTSIZE)
                 def get_timestamp(t):
                     h, m, s = str(timedelta(seconds=t)).split(':')
                     t = f'{h}:{m}:{float(s):.3f}'
                     return escape_chars(t, r"\'=:", r'\\')
                 cmd.append (
-                            ''.join([f'[{i}]drawtext=fontcolor={FONTCOLOR}:fontfile={fontfile}:fontsize={fontsize}:text={get_timestamp(seek + i*interval)}:x=text_h:y=text_h[b{i}];[b{i}]format=rgba[c{i}];[c{i}]pad=iw+2*{pad}:ih+2*{pad}:{pad}:{pad}:color=#00000000[v{i}];' for i in range(c * r)]) 
+                            ''.join([f'[{i}]drawtext=fontcolor={args.fontcolor}:fontfile={fontfile}:fontsize={fontsize}:text={get_timestamp(seek + i*interval)}:x=text_h:y=text_h[b{i}];\
+                                    [b{i}]format=rgba[c{i}];[c{i}]pad=iw+2*{pad}:ih+2*{pad}:{pad}:{pad}:color=#00000000[v{i}];' for i in range(c * r)]) 
                             + ''.join([f'[v{i}]' for i in range(c * r)])
                             + f'xstack=inputs={c * r}:layout='
                             + '|'.join([f'{i * (width + 2 * pad)}_{j * (height + 2 * pad)}' for j in range(r) for i in range(c)])
@@ -309,7 +305,7 @@ def capture_file(file:str, args, output_rule=None):
         return file, CaptureResult.PROBE_FAILED
     
     if not output_rule:
-        output_rule = default_output_rule
+        output_rule = lambda f: f'{f}.cap.{args.format}'
     # Check if a file with the same name to the output exists.
     output_name = output_rule(file)
     if not args.overwrite:
@@ -330,6 +326,8 @@ def capture_file(file:str, args, output_rule=None):
         interval = (duration - seek) / (c * r)
         size = info['size'] / (1024 * 1024)
         width, height = info['width'] * args.height / info['height'], args.height
+        pad = max(int(args.padratio * min(width, height)), 0)
+        fontsize = min(max(int(args.fontratio * min(width, height)), MIN_FONTSIZE), MAX_FONTSIZE)
         
         if duration < seek:
             raise ValueError(f'Invalid argument "-s/--seek". Total duration {duration} less than specified seek value {args.seek}.')
@@ -341,7 +339,17 @@ def capture_file(file:str, args, output_rule=None):
         return file, CaptureResult.PROBE_FAILED
     
     logger.info(f'Begin capturing {file} ({info_txt})...')
-    capture_info = {'seek': seek, 'output_name': output_name, 'interval': interval, 'columns':c, 'rows':r, 'width': width, 'height': height}
+    capture_info = {
+        'seek': seek, 
+        'output_name': output_name, 
+        'interval': interval, 
+        'columns':c, 
+        'rows':r, 
+        'width': width, 
+        'height': height, 
+        'pad': pad, 
+        'fontsize': fontsize
+        }
     available_memory = psutil.virtual_memory().available / (1024 * 1024)
     
     # Select a method according to the file size and the current available memory
@@ -370,6 +378,7 @@ def capture(file:str, args, output_rule=None):
         yield capture_file(file, args, output_rule)
 
 def inspect_dir(dir:str, tree:NodeDir=None) -> NodeDir:
+    '''Retrieve a directory tree from the real directory.'''
     if tree == None:
         tree = NodeDir(dir, None)
         
@@ -399,7 +408,11 @@ def sort_tree(tree:NodeDir):
 def is_video(file:str) -> bool:
     return file.endswith(('.mp4', '.mkv', '.avi', '.mov', '.wmv', '.m4v', '.flv', '.rmvb'))
 
+def is_photo(extension:str) -> bool:
+    return extension in ('png', 'bmp', 'gif', 'jpg', 'jpeg')
+
 def check_ffmpeg():
+    '''Return the installed ffmpeg version and whether it meets the requirement.'''
     cmd = ['ffmpeg', '-version']
     try:
         out, _ = run_async(cmd)
@@ -443,6 +456,10 @@ if __name__ == '__main__':
     parser.add_argument('-t', '--tile',     type=str,   default='5x4',                      help='Tile shaple of the screen shots.')
     parser.add_argument('-o', '--overwrite',action='store_true',                            help='Whether or not overwrite existing files.')
     parser.add_argument('-i', '--timestamp',action='store_true',                            help='Whether or not show present timestamp on captures.')
+    parser.add_argument('-f', '--format',   type=str,   default='png',                      help='Output format.')
+    parser.add_argument('-c', '--fontcolor',type=str,   default='yellow',                   help='Font color of the timestamp. For example, "red" or "0#00000000".')
+    parser.add_argument('-n', '--fontratio',type=float, default=0.08,                       help='Ratio of font size against short edge of each image.')
+    parser.add_argument('-r', '--padratio', type=float, default=0.01,                       help='Ratio of padding against short edge of each image.')
     
     args = parser.parse_args()
     logger.info(f'Current arguments: {args}')
@@ -462,6 +479,13 @@ if __name__ == '__main__':
         if c < 1 or r < 1:
             logger.error(f'Invalid argument "-t/--tile". Tile {args.tile} invalid.')
             sys.exit(1)
+        if not is_photo(args.format):
+            logger.warning(f'Specified format {args.format} is not a valid image format, will use "png" instead.')
+            args.format = 'png'
+        if args.padratio < 0:
+            args.padratio = 0.01
+        if args.fontratio < 0:
+            args.fontratio = 0.08
         if debugger_is_active():
             args.overwrite = True
             args.timestamp = True
