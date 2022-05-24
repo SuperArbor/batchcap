@@ -10,7 +10,6 @@ from traceback import format_exc
 from tqdm import tqdm
 from datetime import datetime, timedelta
 from fractions import Fraction
-from itertools import accumulate
 
 NL = '\n'
 MIN_FONTSIZE = 1
@@ -18,6 +17,7 @@ MAX_FONTSIZE = 999
 MAX_LOG_LENGTH = 2048           # Maximum length of an entry of logging
 MEMORY_PARA = 6                 # Coefficient to decide the capture method to call
 MIN_FFMPEG_MAIN_VERSION = 5
+MAX_COMMAND_LENGTH = 20000      # Maximum length of the command for the system to run
 
 if os.name == 'nt':
     FONTFILE = 'C:/Windows/Fonts/arial.ttf'
@@ -116,8 +116,8 @@ def escape_chars(text, chars, escape='\\'):
         text = text.replace(ch, escape + ch)
     return text
 
-def capture_file_once(file:str, args, capture_info:dict):
-    '''Captures a video according to arguments.
+def capture_file_once_cmd(file:str, args, capture_info:dict):
+    '''Get the command to capture a video according to arguments.
     
     It is done by generating a command and use subprocess to run it. 
     The command will be something like:
@@ -151,63 +151,51 @@ def capture_file_once(file:str, args, capture_info:dict):
     
     Though looking much easier, the second way is computationally expensive.
     '''
-    try:
-        output_name = capture_info['output_name']
-        seek = capture_info['seek']
-        interval = capture_info['interval']
-        width, height = capture_info['width'], capture_info['height']
-        c, r = capture_info['columns'], capture_info['rows']
-        pad = capture_info['pad']
-        fontsize = capture_info['fontsize']
-        
-        # Generating command
-        cmd = ['ffmpeg']
-        for i in range(c * r):
-            cmd.extend(['-ss', f'{seek + i*interval}', '-i', file])
-        
-        cmd.append('-filter_complex')
-        if args.timestamp:
-            fontfile = escape_chars(FONTFILE, r"\' =:", r'\\')
-            def get_timestamp(t):
-                h, m, s = str(timedelta(seconds=t)).split(':')
-                t = f'{h}:{m}:{float(s):.3f}'
-                return escape_chars(t, r"\'=:", r'\\')
-            cmd.append (
-                        ''.join([f'[{i}:v:0]scale=-1:{args.height}[a{i}];\
-                                    [a{i}]drawtext=fontcolor={args.fontcolor}:fontfile={fontfile}:fontsize={fontsize}:text={get_timestamp(seek + i*interval)}:x=text_h:y=text_h[b{i}];\
-                                    [b{i}]format=rgba[c{i}];[c{i}]pad=iw+2*{pad}:ih+2*{pad}:{pad}:{pad}:color=#00000000[v{i}];' for i in range(c * r)]) 
-                        + ''.join([f'[v{i}]' for i in range(c * r)])
-                        + f'xstack=inputs={c * r}:layout='
-                        + '|'.join([f'{i * (width + pad * 2)}_{j * (height + pad * 2)}' for j in range(r) for i in range(c)])
-                        + '[c]')
-        else:
-            cmd.append (
-                        ''.join([f'[{i}:v:0]scale=-1:{args.height}[b{i}];\
+    output_name = capture_info['output_name']
+    seek = capture_info['seek']
+    interval = capture_info['interval']
+    width, height = capture_info['width'], capture_info['height']
+    c, r = capture_info['columns'], capture_info['rows']
+    pad = capture_info['pad']
+    fontsize = capture_info['fontsize']
+    
+    # Generating command
+    cmd = ['ffmpeg']
+    for i in range(c * r):
+        cmd.extend(['-ss', f'{seek + i*interval}', '-i', file])
+    
+    cmd.append('-filter_complex')
+    if args.timestamp:
+        fontfile = escape_chars(FONTFILE, r"\' =:", r'\\')
+        def get_timestamp(t):
+            h, m, s = str(timedelta(seconds=t)).split(':')
+            t = f'{h}:{m}:{float(s):.3f}'
+            return escape_chars(t, r"\'=:", r'\\')
+        cmd.append (
+                    ''.join([f'[{i}:v:0]scale=-1:{args.height}[a{i}];\
+                                [a{i}]drawtext=fontcolor={args.fontcolor}:fontfile={fontfile}:fontsize={fontsize}:text={get_timestamp(seek + i*interval)}:x=text_h:y=text_h[b{i}];\
                                 [b{i}]format=rgba[c{i}];[c{i}]pad=iw+2*{pad}:ih+2*{pad}:{pad}:{pad}:color=#00000000[v{i}];' for i in range(c * r)]) 
-                        + ''.join([f'[v{i}]' for i in range(c * r)])
-                        + f'xstack=inputs={c * r}:layout='
-                        + '|'.join([f'{i * width}_{j * height}' for j in range(r) for i in range(c)])
-                        + '[c]')
-            
-        cmd.extend(['-map', '[c]'])
-        cmd.extend(['-frames:v', '1'])
-        cmd.extend(['-loglevel', 'error'])
-        if args.overwrite:
-            cmd.extend([output_name, '-y'])
-        else:
-            cmd.extend([output_name])
+                    + ''.join([f'[v{i}]' for i in range(c * r)])
+                    + f'xstack=inputs={c * r}:layout='
+                    + '|'.join([f'{i * (width + pad * 2)}_{j * (height + pad * 2)}' for j in range(r) for i in range(c)])
+                    + '[c]')
+    else:
+        cmd.append (
+                    ''.join([f'[{i}:v:0]scale=-1:{args.height}[b{i}];\
+                            [b{i}]format=rgba[c{i}];[c{i}]pad=iw+2*{pad}:ih+2*{pad}:{pad}:{pad}:color=#00000000[v{i}];' for i in range(c * r)]) 
+                    + ''.join([f'[v{i}]' for i in range(c * r)])
+                    + f'xstack=inputs={c * r}:layout='
+                    + '|'.join([f'{i * width}_{j * height}' for j in range(r) for i in range(c)])
+                    + '[c]')
         
-        _, err = run_async(cmd)
-        if err:
-            logger.error(f'Error occured during capturing {file}:{NL}{suppress_log(err)}')
-            return CaptureResult.CAPTURE_ERROR_OCCURED
-        else:
-            logger.info(f'Succeeded in capturing {file}.')
-            return CaptureResult.SUCCEEDED
-    except Exception:
-        logger.error(suppress_log(format_exc()))
-        logger.info(f'Failed to capture {file}.')
-        return CaptureResult.CAPTURE_FAILED
+    cmd.extend(['-map', '[c]'])
+    cmd.extend(['-frames:v', '1'])
+    cmd.extend(['-loglevel', 'error'])
+    if args.overwrite:
+        cmd.extend([output_name, '-y'])
+    else:
+        cmd.extend([output_name])
+    return cmd
 
 def capture_file_in_sequence(file:str, args, capture_info:dict):
     '''Captures a video according to arguments.
@@ -299,7 +287,14 @@ def capture_file_in_sequence(file:str, args, capture_info:dict):
         return CaptureResult.CAPTURE_FAILED
 
 def capture_file(file:str, args, output_rule=None):
-    '''Probe and capture a file.'''
+    '''Probe and capture a file.
+    There are two ways to do that.
+    (1) Compile the task into one command and run it once;
+    (2) Capture all the images and save them on the disk before joining them in another command.
+    
+    The first way is more efficient when the file is small and the number of captures (c * r) is 
+    small, but it is also more memory consuming. So this method chooses one of them to execute.
+    '''
     if not os.path.isfile(file):
         logger.error(f'Specified file {file} does not exist.')
         return file, CaptureResult.PROBE_FAILED
@@ -354,8 +349,27 @@ def capture_file(file:str, args, output_rule=None):
     
     # Select a method according to the file size and the current available memory
     if available_memory * MEMORY_PARA  > (size * c * r):
-        logger.info(f'Capturing {file} in one command.')
-        result = capture_file_once(file, args, capture_info)
+        logger.info(f'Trying to capture {file} in one command.')
+        cmd = capture_file_once_cmd(file, args, capture_info)
+        sum = 0
+        for c in cmd:
+            sum += len(c)
+        if sum < MAX_COMMAND_LENGTH:
+            try:
+                _, err = run_async(cmd)
+                if err:
+                    logger.error(f'Error occured during capturing {file}:{NL}{suppress_log(err)}')
+                    return file, CaptureResult.CAPTURE_ERROR_OCCURED
+                else:
+                    logger.info(f'Succeeded in capturing {file}.')
+                    return file, CaptureResult.SUCCEEDED
+            except Exception:
+                logger.error(suppress_log(format_exc()))
+                logger.info(f'Failed to capture {file}.')
+                return file, CaptureResult.CAPTURE_FAILED
+        else:
+            logger.info(f'Command too long. Switch to sequnce command mode.')
+            result = capture_file_in_sequence(file, args, capture_info)
     else:
         logger.info(f'Capturing {file} in splitted commands.')
         result = capture_file_in_sequence(file, args, capture_info)
