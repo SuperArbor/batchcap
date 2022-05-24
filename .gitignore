@@ -2,9 +2,14 @@ __pycache__
 *.sh
 *.bat
 *.ps1
-tests.py
 *.json
 *.log
 *.mkv
-*.png
+*.wmv
 *.mp4
+*.avi
+*.rmvb
+*.mov
+*.m4v
+*.png
+
