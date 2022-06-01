@@ -420,7 +420,7 @@ def sort_tree(tree:NodeDir):
         sort_tree(tree)
 
 def is_video(file:str) -> bool:
-    return file.endswith(('.mp4', '.mkv', '.avi', '.mov', '.wmv', '.m4v', '.flv', '.rmvb', 'rm', 'ts', 'm2ts'))
+    return file.lower().strip().endswith(('.mp4', '.mkv', '.avi', '.mov', '.wmv', '.m4v', '.flv', '.rmvb', 'rm', 'ts', 'm2ts'))
 
 def check_ffmpeg():
     '''Return the installed ffmpeg version and whether it meets the requirement.'''
