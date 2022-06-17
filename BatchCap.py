@@ -393,7 +393,7 @@ def inspect_dir(dir:str, tree:NodeDir=None, overwrite=False, format='png') -> No
             tree.mkdir(file)
             inspect_dir(filename, tree[file], overwrite, format)
         elif is_video(file): 
-            output_name = get_output_name(file, format)
+            output_name = get_output_name(filename, format)
             if not os.path.exists(output_name) or overwrite:
                 tree.touch(file)
     return tree
