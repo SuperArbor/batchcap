@@ -41,7 +41,6 @@ class CaptureResult(Enum):
     SUCCEEDED = 0
     PROBE_FAILED = -1
     CAPTURE_ERROR_OCCURED = 1
-    CAPTURE_SKIPPED = 2
     CAPTURE_FAILED = -2
     
     def __str__(self) -> str:
@@ -286,7 +285,7 @@ def capture_file_in_sequence(file:str, args, capture_info:dict):
         logger.info(f'Failed to capture {file}.')
         return CaptureResult.CAPTURE_FAILED
 
-def capture_file(file:str, args, output_rule=None):
+def capture_file(file:str, args):
     '''Probe and capture a file.
     There are two ways to do that.
     (1) Compile the task into one command and run it once;
@@ -299,20 +298,12 @@ def capture_file(file:str, args, output_rule=None):
         logger.error(f'Specified file {file} does not exist.')
         return file, CaptureResult.PROBE_FAILED
     
-    if not output_rule:
-        output_rule = lambda f: f'{f}.cap.{args.format}'
-    # Check if a file with the same name to the output exists.
-    output_name = output_rule(file)
-    if not args.overwrite:
-        if os.path.exists(output_name):
-            logger.info(f'{output_name} already exists and overwrite is set to false. Skipping this.')
-            return file, CaptureResult.CAPTURE_SKIPPED
-    
     begin = datetime.now()
     try:
         # Probe file info.
         logger.info(f'Probing file {file}...')
         info = probe_file(file)
+        output_name = get_output_name(file, args.format)
         
         duration = info['duration']
         seek = args.seek
@@ -376,10 +367,10 @@ def capture_file(file:str, args, output_rule=None):
     logger.info(f'Time elapsed: {datetime.now()-begin}.')
     return file, result
 
-def capture(file:str, args, output_rule=None):
+def capture(file:str, args):
     '''Entry of the capture tasks.'''
     if os.path.isdir(file):
-        tree_input = inspect_dir(file)
+        tree_input = inspect_dir(file, None, args.overwrite, args.format)
         nodes = tree_input.walk(lambda n: (not n.is_dir()) and is_video(n.id))
         paths = [node.abs_id for node in nodes]
         if not paths:
@@ -387,11 +378,11 @@ def capture(file:str, args, output_rule=None):
             return
         logger.info(f'Number of files to be captured: {len(paths)}')
         for file in tqdm(paths):
-            yield capture_file(file, args, output_rule)
+            yield capture_file(file, args)
     else:
-        yield capture_file(file, args, output_rule)
+        yield capture_file(file, args)
 
-def inspect_dir(dir:str, tree:NodeDir=None) -> NodeDir:
+def inspect_dir(dir:str, tree:NodeDir=None, overwrite=False, format='png') -> NodeDir:
     '''Retrieve a directory tree from the real directory.'''
     if tree == None:
         tree = NodeDir(dir, None)
@@ -400,11 +391,15 @@ def inspect_dir(dir:str, tree:NodeDir=None) -> NodeDir:
         filename = dir + SEP + file
         if os.path.isdir(filename):
             tree.mkdir(file)
-            inspect_dir(filename, tree[file])
+            inspect_dir(filename, tree[file], overwrite, format)
         elif is_video(file): 
-            tree.touch(file)
-            
+            output_name = get_output_name(file, format)
+            if not os.path.exists(output_name) or overwrite:
+                tree.touch(file)
     return tree
+
+def get_output_name(file:str, format:str):
+    return f'{file}.cap.{format}'
 
 def sort_tree(tree:NodeDir):
     '''Remove unneeded branches in the tree.'''
@@ -509,22 +504,18 @@ if __name__ == '__main__':
     if output:
         count_succeeded = 0
         count_failed = 0
-        count_skipped = 0
         count_error = 0
         for file, result in output:
             if result == CaptureResult.SUCCEEDED:
                 count_succeeded += 1
-            elif result == CaptureResult.CAPTURE_SKIPPED:
-                count_skipped += 1
             elif result == CaptureResult.CAPTURE_ERROR_OCCURED:
                 count_error += 1
             else:
                 count_failed += 1
         
         # Reporting result
-        logger.info(NL.join([f'{result}:\t{file}' for file, result in output if not output == CaptureResult.CAPTURE_SKIPPED]))
+        logger.info(NL.join([f'{result}:\t{file}' for file, result in output]))
         logger.info(f'Succeeded: {count_succeeded}{NL}' 
-                    + f'Skipped: {count_skipped}{NL}' 
                     + f'Completed with error: {count_error}{NL}' 
                     + f'Failed: {count_failed}')
     
