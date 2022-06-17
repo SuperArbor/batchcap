@@ -459,11 +459,11 @@ if __name__ == '__main__':
     parser.add_argument('-p', '--path',     type=str,   default=os.path.dirname(__file__),  help='Path of directory or file.')
     parser.add_argument('-s', '--seek',     type=float, default=0,                          help='Time of the first capture.')
     parser.add_argument('-g', '--height',   type=int,   default=270,                        help='Height of each image in the capture.')
-    parser.add_argument('-t', '--tile',     type=str,   default='5x4',                      help='Tile shaple of the screen shots.')
+    parser.add_argument('-t', '--tile',     type=str,   default='5x5',                      help='Tile shaple of the screen shots.')
     parser.add_argument('-o', '--overwrite',action='store_true',                            help='Whether or not overwrite existing files.')
     parser.add_argument('-i', '--timestamp',action='store_true',                            help='Whether or not show present timestamp on captures.')
     parser.add_argument('-f', '--format',   type=str,   default='png',                      help='Output format.')
-    parser.add_argument('-c', '--fontcolor',type=str,   default='yellow',                   help='Font color of the timestamp. For example, "red" or "0#00000000".')
+    parser.add_argument('-c', '--fontcolor',type=str,   default='white',                    help='Font color of the timestamp. For example, "red" or "0#00000000".')
     parser.add_argument('-n', '--fontratio',type=float, default=0.08,                       help='Ratio of font size against short edge of each image.')
     parser.add_argument('-r', '--padratio', type=float, default=0.01,                       help='Ratio of padding against short edge of each image.')
     

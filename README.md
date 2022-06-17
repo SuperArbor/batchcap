@@ -2,7 +2,7 @@
 
 A convenient batch capture tool for both Windows and Linux. Below is an example.
 
-![sample](https://user-images.githubusercontent.com/11332363/170001385-09f98dd8-aa46-4bec-b183-9d75ebdd104d.png)
+![SAMPLE](https://user-images.githubusercontent.com/11332363/174342053-e868a9a1-8eb3-4e3b-8d6e-4e753c095fb6.png)
 
 ## Prerequisites
 
@@ -18,7 +18,7 @@ The arguments below are used to specify the input and output behaviors.
 
 *-g / --height* (type: integer, default: 270): The height of each captured image (in pixels).
 
-*-t / --tile* (type: string, default value: "5x4"): Shape of the tile made up from the captured images with format "cxr" where c stands for columns and r stands for rows. "1x1" is not allowed.
+*-t / --tile* (type: string, default value: "5x5"): Shape of the tile made up from the captured images with format "cxr" where c stands for columns and r stands for rows. "1x1" is not allowed.
 
 *-s / --seek* (type: float, default: 0): Time of the first capture (in seconds).
 
@@ -28,7 +28,7 @@ The arguments below are used to specify the input and output behaviors.
 
 *-f / --format* (type: str, default: "png"): Output format. Should be one of the image file extensions, i.e. png, bmp, jpg and so forth.
 
-*-c / --fontcolor* (type: str, default: "yellow"): Font color of the timestamp. For example, "red" or "0#00000000".
+*-c / --fontcolor* (type: str, default: "white"): Font color of the timestamp. For example, "red" or "0#00000000".
 
 *-r / --padratio* (type: float, default: 0.01): Ratio of padding against short edge of each image.
 
