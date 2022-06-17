@@ -385,7 +385,7 @@ def capture(file:str, args, output_rule=None):
         if not paths:
             logger.warning(f'No files to be captured.')
             return
-        logger.info(f'Files to be captured:' + NL + NL.join(paths))
+        logger.info(f'Number of files to be captured: {len(paths)}')
         for file in tqdm(paths):
             yield capture_file(file, args, output_rule)
     else:
@@ -522,7 +522,7 @@ if __name__ == '__main__':
                 count_failed += 1
         
         # Reporting result
-        logger.info(NL.join([f'{result}:\t{file}' for file, result in output]))
+        logger.info(NL.join([f'{result}:\t{file}' for file, result in output if not output == CaptureResult.CAPTURE_SKIPPED]))
         logger.info(f'Succeeded: {count_succeeded}{NL}' 
                     + f'Skipped: {count_skipped}{NL}' 
                     + f'Completed with error: {count_error}{NL}' 
