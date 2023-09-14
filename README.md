@@ -6,7 +6,7 @@ A convenient batch capture tool for both Windows and Linux. Below is an example.
 
 ## Prerequisites
 
-FFmpeg 5 should be installed. As far as I know, FFmpeg 3 lacks some APIs, causing the tool to fail. FFmpeg 4 is not tested.
+FFmpeg 4 or higher version should be installed. As far as I know, FFmpeg 3 lacks some APIs, causing the tool to fail.
 
 ## Usage
 
@@ -132,5 +132,5 @@ or you can run it in the background
 ```bash
 #!/bin/bash
 
-nohup path_to_python path_to_batchcap.py -p "$(dirname $BASH_SOURCE)" -s 1 -i -c yellow -n 0.08 -g 270 -r 0.01 -t 5x4 -o -f png > ~/nohup.log 2>&1 &
+nohup path_to_python path_to_batchcap.py -p $(dirname $BASH_SOURCE) -s 1 -i -c yellow -n 0.08 -g 270 -r 0.01 -t 5x4 -o -f png > ~/nohup.log 2>&1 &
 ```
