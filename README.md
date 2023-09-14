@@ -126,3 +126,11 @@ On Linux, use a bash script (with extension ".sh").
 
 path_to_python path_to_batchcap.py -p $(dirname $BASH_SOURCE) -s 1 -i -c yellow -n 0.08 -g 270 -r 0.01 -t 5x4 -o -f png
 ```
+
+or you can run it in the background
+
+```bash
+#!/bin/bash
+
+nohup path_to_python path_to_batchcap.py -p "$(dirname $BASH_SOURCE)" -s 1 -i -c yellow -n 0.08 -g 270 -r 0.01 -t 5x4 -o -f png > ~/nohup.log 2>&1 &
+```
