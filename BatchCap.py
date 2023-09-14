@@ -16,7 +16,7 @@ MIN_FONTSIZE = 1
 MAX_FONTSIZE = 999
 MAX_LOG_LENGTH = 2048           # Maximum length of an entry of logging
 MEMORY_PARA = 6                 # Coefficient to decide the capture method to call
-MIN_FFMPEG_MAIN_VERSION = 5
+MIN_FFMPEG_MAIN_VERSION = 4
 MAX_COMMAND_LENGTH = 20000      # Maximum length of the command for the system to run
 
 if os.name == 'nt':
