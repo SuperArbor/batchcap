@@ -1,7 +1,7 @@
 #!/bin/bash
 
 batchcap \
-    -p "$(dirname "$BASH_SOURCE")" \
+    "$(dirname "$BASH_SOURCE")" \
     -s 1 \
     -i \
     -c yellow \

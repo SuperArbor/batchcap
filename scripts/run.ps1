@@ -72,7 +72,7 @@ param(
 # ============================
 
 & batchcap `
-    -p $PSScriptRoot `
+    $PSScriptRoot `
     -s 1 `
     -i `
     -c yellow `

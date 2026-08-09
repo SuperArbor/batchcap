@@ -5,6 +5,7 @@ from traceback import format_exc
 from tqdm import tqdm
 from datetime import datetime, timedelta
 from fractions import Fraction
+from collections.abc import Iterable
 
 import psutil
 from .Logger import *
@@ -56,64 +57,81 @@ if os.name == 'nt':
 else:
     FONTFILE = '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc'
 
-def debugger_is_active() -> bool:
-    """Return if the debugger is currently active"""
-    gettrace = getattr(sys, 'gettrace', lambda : None) 
-    return gettrace() is not None
-
 class AsyncError(Exception):
-    def __init__(self, cmd:str, out, err) -> None:
+    def __init__(self, cmd, out, err, retcode):
         self.cmd = cmd
         self.out = out
         self.err = err
+        self.retcode = retcode
+        super().__init__(f"{cmd} exited {retcode}: {err.strip().splitlines()[0]}")
+        
     def __repr__(self) -> str:
-        return self.cmd + ' error'
+        return self.cmd + f' exited {self.retcode}'
 
 class CaptureResult(Enum):
     SUCCEEDED = 0
+    SKIPPED = 1
     PROBE_FAILED = -1
-    CAPTURE_ERROR_OCCURED = 1
-    CAPTURE_FAILED = -2
+    CAPTURE_ERROR_OCCURED = -2
+    CAPTURE_FAILED = -3
     
     def __str__(self) -> str:
         return self.name
 
-def run_async(args, stdin=PIPE, stdout=PIPE, stderr=PIPE, multiple=False, verbose=False) -> tuple[str, str]:
-    '''Call the command(s) in another process.
-    multiple: whether there are more than one commands in cmds to be chained by pipes.
-    '''
+def run_async(
+    args,
+    stdin=PIPE, stdout=PIPE, stderr=PIPE,
+    multiple=False,
+    verbose=False,) -> tuple[int, str, str]:
+    """
+    return: (retcode, stdout, stderr)
+    """
+
+    last_proc = None
+
     if multiple:
-        process = None
-        for cmd in args:
+        prev = stdin
+        for i, cmd in enumerate(args):
             if verbose:
-                LOGGER.info(f'Running command: {' '.join(cmd)}')
-            if process:
-                process = Popen(cmd, stdin=process.stdout, stdout=stdout, stderr=stderr)
-            else:
-                process = Popen(cmd, stdin=stdin, stdout=stdout, stderr=stderr)
+                LOGGER.info(f'Running command: {" ".join(cmd)}')
+            last_proc = Popen(
+                cmd,
+                stdin=prev,
+                stdout=PIPE if i != len(args)-1 else stdout,
+                stderr=stderr,
+                text=True,
+                encoding="utf-8",
+                errors="ignore",
+            )
+            prev = last_proc.stdout
     else:
         if verbose:
             LOGGER.info(f'Running command: {args}')
-        process = Popen(args, stdin=stdin, stdout=stdout, stderr=stderr)
-    
-    out, err = process.communicate()
-    out, err = out.decode('utf-8'), err.decode('utf-8')
-    retcode = process.poll()
+        last_proc = Popen(
+            args,
+            stdin=stdin,
+            stdout=stdout,
+            stderr=stderr,
+            text=True,
+            encoding="utf-8",
+            errors="ignore",
+        )
+
+    out, err = last_proc.communicate()
+    retcode = last_proc.returncode
+
     if retcode != 0:
-        cmd = 'unknown'
-        if isinstance(args, list):
-            if len(args) > 0:
-                cmd = args[0]
-        elif isinstance(args, str):
-            cmd = args
-        raise AsyncError(cmd, out, err)
-    return out, err
+        cmd_name = args[0][0] if multiple else args[0]
+        raise AsyncError(cmd_name, out, err, retcode)
+
+    LOGGER.info(f"return code: {retcode}\noutput: {suppress_log(out)}\nerr: {err}")
+    return retcode, out, err
 
 def probe_file(file:str, args) -> dict:
     '''Returns basic information of a video.'''
     cmd = [FFPROBE, '-show_format', '-show_streams', '-loglevel', 'error', '-of', 'json', file]
     
-    out, err = run_async(cmd, verbose=args.verbose)
+    _, out, err = run_async(cmd, verbose=args.verbose)
     if err:
         LOGGER.error(f'Error occured during probing {file}:{NL}{suppress_log(err)}')
         
@@ -262,7 +280,11 @@ def capture_file_in_sequence(file:str, args, capture_info:dict) -> CaptureResult
                 if args.overwrite:
                     cmd.append('-y')
                     
-                _, err = run_async(cmd, verbose=args.verbose)
+                _, _, err = run_async(cmd, verbose=args.verbose)
+                if err:
+                    LOGGER.error(f'Error occured.{NL}{suppress_log(err)}')
+                    return CaptureResult.CAPTURE_ERROR_OCCURED
+                
                 tmp_files.append(captured)
         except Exception as e:
             [os.remove(f) for f in tmp_files]
@@ -302,12 +324,15 @@ def capture_file_in_sequence(file:str, args, capture_info:dict) -> CaptureResult
             else:
                 cmd.extend([output_name])
             
-            # Run stacking command
-            _, err = run_async(cmd, verbose=args.verbose)
+            retcode, _, err = run_async(cmd, verbose=args.verbose)
             
-            if err:
-                LOGGER.error(f'Error occured.')
-                return CaptureResult.CAPTURE_ERROR_OCCURED
+            if retcode != 0:
+                if "already exists" in err and not args.overwrite:
+                    LOGGER.info("Output exists, skipping. Use -o/--overwrite to overwrite.")
+                    return CaptureResult.SKIPPED
+                else:
+                    LOGGER.error(f'Error occured.{NL}{suppress_log(err)}')
+                    return CaptureResult.CAPTURE_ERROR_OCCURED
             else:
                 LOGGER.info(f'Succeeded.')
                 return CaptureResult.SUCCEEDED
@@ -382,13 +407,18 @@ def capture_file(file:str, args) -> tuple[str, CaptureResult]:
             sum += len(c)
         if sum < MAX_COMMAND_LENGTH:
             try:
-                _, err = run_async(cmd, verbose=args.verbose)
-                if err:
-                    LOGGER.error(f'Error occured.')
-                    result = CaptureResult.CAPTURE_ERROR_OCCURED
+                retcode, _, err = run_async(cmd, verbose=args.verbose)
+                
+                if retcode != 0:
+                    if "already exists" in err and not args.overwrite:
+                        LOGGER.info("Output exists, skipping. Use -o/--overwrite to overwrite.")
+                        return CaptureResult.SKIPPED
+                    else:
+                        LOGGER.error(f'Error occured.{NL}{suppress_log(err)}')
+                        return CaptureResult.CAPTURE_ERROR_OCCURED
                 else:
                     LOGGER.info(f'Succeeded.')
-                    result = CaptureResult.SUCCEEDED
+                    return CaptureResult.SUCCEEDED
             except Exception:
                 LOGGER.error(suppress_log(format_exc()))
                 LOGGER.info(f'Failed to capture {file}.')
@@ -401,21 +431,36 @@ def capture_file(file:str, args) -> tuple[str, CaptureResult]:
         result = capture_file_in_sequence(file, args, capture_info)
     return file, result
 
-def capture(file:str, args):
-    '''Entry of the capture tasks.'''
-    if os.path.isdir(file):
-        tree_input = inspect_dir(file, None, args.overwrite, args.format)
+def capture_single(path:str, args) -> Iterable[tuple[str, CaptureResult]]:
+    '''Capture a single file or all the files in a directory.'''
+    if os.path.isdir(path):    
+        tree_input = inspect_dir(path, None, args.overwrite, args.format)
         nodes = tree_input.walk(lambda n: (not n.is_dir()) and is_video(n.id))
-        paths = [node.abs_id for node in nodes]
-        if not paths:
+        pths = [node.abs_id for node in nodes]
+        if not pths:
             LOGGER.warning(f'No files to be captured.')
             return
-        LOGGER.info(f'Number of files to be captured: {len(paths)}')
-        for file in tqdm(paths):
-            yield capture_file(file, args)
+        LOGGER.info(f'Number of files to be captured: {len(pths)}')
+        for pth in tqdm(pths):
+            yield capture_file(pth, args)
+    elif os.path.isfile(path):
+        if is_video(path):
+            yield capture_file(path, args)
+        else:
+            LOGGER.warning(f'Invalid argument "path". Path {path} is not a video file.')
+            return
     else:
-        yield capture_file(file, args)
+        LOGGER.warning(f'Invalid argument "path". Path {path} is not a directory or path of a video.')
+        return
 
+def capture_multi(paths:list[str], args) -> Iterable[tuple[str, CaptureResult]]:
+    '''Entry of multiple capture tasks.'''
+    if not isinstance(paths, (list, tuple)):
+        LOGGER.error(f'Invalid argument "path". Path {paths} is not a list or tuple.')
+        return
+    for f in paths:
+        yield from capture_single(f, args)
+                
 def inspect_dir(dir:str, tree:NodeDir=None, overwrite=False, format='png') -> NodeDir:
     '''Retrieve a directory tree from the real directory.'''
     if tree == None:
@@ -468,11 +513,11 @@ def check_ffmpeg_features(ffmpeg_bin) -> tuple[bool, str]:
     if not ffmpeg_bin:
         return False, "ffmpeg not found in PATH"
 
-    out, _ = run_async([ffmpeg_bin, "-version"])
+    _, out, _ = run_async([ffmpeg_bin, "-version"])
     if "ffmpeg version" not in out.lower():
         return False, "ffmpeg binary broken"
 
-    flist, _ = run_async([ffmpeg_bin, "-filters"])
+    _, flist, _ = run_async([ffmpeg_bin, "-filters"])
 
     def has_filter(name) -> bool:
         for line in flist.splitlines():
@@ -520,59 +565,67 @@ def main():
     
     # arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument('-p', '--path',     type=str,   default=os.path.dirname(__file__),  help='Path of directory or file')
-    parser.add_argument('-s', '--seek',     type=float, default=0,                          help='Time of the first capture')
-    parser.add_argument('-g', '--height',   type=int,   default=270,                        help='Height of each image in the capture')
-    parser.add_argument('-t', '--tile',     type=str,   default='4x4',                      help='Tile shaple of the screen shots')
-    parser.add_argument('-o', '--overwrite',action='store_true',                            help='Whether or not overwrite existing files')
-    parser.add_argument('-i', '--timestamp',action='store_true',                            help='Whether or not show present timestamp on captures')
-    parser.add_argument('-f', '--format',   type=str,   default='png',                      help='Output format')
-    parser.add_argument('-c', '--fontcolor',type=str,   default='white',                    help='Font color of the timestamp. Could be strings like "red" or RGBA values like "0#00000000"')
-    parser.add_argument('-n', '--fontratio',type=float, default=0.08,                       help='Ratio of font size against short edge of each image')
-    parser.add_argument('-r', '--padratio', type=float, default=0.01,                       help='Ratio of padding against short edge of each image')
-    parser.add_argument('-v', '--verbose',  action='store_true',                            help='Verbose level for ffmpeg command output')
+    parser.add_argument('path', nargs="+",  help='path of directory or file')
+
+    parser.add_argument('-s', '--seek',     type=float,     default=0,          help='time of the first capture')
+    parser.add_argument('-g', '--height',   type=int,       default=270,        help='thumbnail height')
+    parser.add_argument('-t', '--tile',     type=str,       default='4x4',      help='tile shape (cols x rows)')
+    parser.add_argument('-f', '--format',   type=str,       default='png',      help='output format')
+    parser.add_argument('-c', '--fontcolor',type=str,       default='white',    help='font color / RGBA')
+    parser.add_argument('-n', '--fontratio',type=float,     default=0.08,       help='font size ratio')
+    parser.add_argument('-r', '--padratio', type=float,     default=0.01,       help='padding ratio')
+    parser.add_argument('-i', '--timestamp',action='store_true')
+    parser.add_argument('-o', '--overwrite',action='store_true')
+    parser.add_argument('-v', '--verbose',  action='store_true')
     
     args = parser.parse_args()
     LOGGER.info(f'Current arguments: {args}')
     
+    # transfer to list
+    args.path = (args.path if isinstance(args.path, (list, tuple)) 
+             else [p for p in args.path])
+    
     try:
-        if not os.path.exists(args.path):
-            LOGGER.error(f'Invalid argument "-p/--path". Path {args.path} does not exsist.')
+        if not all(os.path.exists(p) for p in args.path):
+            bad = [p for p in args.path if not os.path.exists(p)]
+            LOGGER.error(f'Some paths do not exist: {bad}')
             sys.exit(1)
+            
         if args.height < 0:
             LOGGER.error(f'Invalid argument "-g/--height". Height {args.height} invalid.')
             sys.exit(1)
+            
         if args.seek < 0:
             LOGGER.error(f'Invalid argument "-s/--seek". Seek {args.seek} invalid.')
             sys.exit(1)
+            
         c, r = args.tile.split('x')
         c, r = int(c), int(r)
         if c < 1 or r < 1 or (c == 1 and r == 1):
             LOGGER.error(f'Invalid argument "-t/--tile". Tile {args.tile} invalid.')
             sys.exit(1)
+            
         if args.padratio < 0:
             args.padratio = 0.01
+            
         if args.fontratio < 0:
             args.fontratio = 0.08
-        if debugger_is_active():
-            args.overwrite = True
-            args.timestamp = True
     except Exception:
         LOGGER.error(f'Failed to parse arguments.')
         sys.exit(1)
     
     # task
-    args.path = args.path.replace('\\', UNIX_SEP)
     begin = datetime.now()
     LOGGER.info(f'Task start at {begin}.')
     
-    output = list(capture(args.path, args=args))
+    output = capture_multi(args.path, args=args)
     if output:
+        output = list(output)
         count_succeeded = 0
         count_failed = 0
         count_error = 0
         for _, result in output:
-            if result == CaptureResult.SUCCEEDED:
+            if result == CaptureResult.SUCCEEDED or result == CaptureResult.SKIPPED:
                 count_succeeded += 1
             elif result == CaptureResult.CAPTURE_ERROR_OCCURED:
                 count_error += 1
