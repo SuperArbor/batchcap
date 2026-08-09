@@ -11,7 +11,7 @@ import psutil
 from .Logger import *
 
 # Global constants
-NL = '\n'
+NL = os.linesep
 MIN_FONTSIZE = 1
 MAX_FONTSIZE = 999
 MAX_LOG_LENGTH = 2048           # Maximum length of an entry of logging
@@ -51,6 +51,26 @@ file_h = RotatingFileHandler(
 )
 file_h.setFormatter(logging.Formatter(file_fmt))
 LOGGER.addHandler(file_h)
+
+# build parser
+def build_parser():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('path', nargs="+",  help='path of directory or file')
+
+    parser.add_argument('-s', '--seek',     type=float,     default=0,          help='time of the first capture')
+    parser.add_argument('-g', '--height',   type=int,       default=270,        help='thumbnail height')
+    parser.add_argument('-t', '--tile',     type=str,       default='4x4',      help='tile shape (cols x rows)')
+    parser.add_argument('-f', '--format',   type=str,       default='png',      help='output format')
+    parser.add_argument('-c', '--fontcolor',type=str,       default='white',    help='font color / RGBA')
+    parser.add_argument('-n', '--fontratio',type=float,     default=0.08,       help='font size ratio')
+    parser.add_argument('-r', '--padratio', type=float,     default=0.01,       help='padding ratio')
+    parser.add_argument('-i', '--timestamp',action='store_true')
+    parser.add_argument('-o', '--overwrite',action='store_true')
+    parser.add_argument('-v', '--verbose',  action='store_true')
+
+    return parser
+
+parser = build_parser()
 
 if os.name == 'nt':
     FONTFILE = 'C:/Windows/Fonts/arial.ttf'
@@ -411,13 +431,13 @@ def capture_file(file:str, args) -> tuple[str, CaptureResult]:
                 if retcode != 0:
                     if "already exists" in err and not args.overwrite:
                         LOGGER.info("Output exists, skipping. Use -o/--overwrite to overwrite.")
-                        return CaptureResult.SKIPPED
+                        return file, CaptureResult.SKIPPED
                     else:
                         LOGGER.error(f'Error occured.{NL}{suppress_log(err)}')
-                        return CaptureResult.CAPTURE_ERROR_OCCURED
+                        return file, CaptureResult.CAPTURE_ERROR_OCCURED
                 else:
                     LOGGER.info(f'Succeeded.')
-                    return CaptureResult.SUCCEEDED
+                    return file, CaptureResult.SUCCEEDED
             except Exception:
                 LOGGER.error(suppress_log(format_exc()))
                 LOGGER.info(f'Failed to capture {file}.')
@@ -514,7 +534,8 @@ def check_ffmpeg_features(ffmpeg_bin: str) -> tuple[bool, str]:
         return False, f"Missing filters: {', '.join(missing)}"
 
     return True, ""
-    
+
+
 def main():
     global FFMPEG, FFPROBE
     # check FFmpeg and FFprobe
@@ -541,20 +562,6 @@ def main():
         sys.exit(1)
     
     # arguments
-    parser = argparse.ArgumentParser()
-    parser.add_argument('path', nargs="+",  help='path of directory or file')
-
-    parser.add_argument('-s', '--seek',     type=float,     default=0,          help='time of the first capture')
-    parser.add_argument('-g', '--height',   type=int,       default=270,        help='thumbnail height')
-    parser.add_argument('-t', '--tile',     type=str,       default='4x4',      help='tile shape (cols x rows)')
-    parser.add_argument('-f', '--format',   type=str,       default='png',      help='output format')
-    parser.add_argument('-c', '--fontcolor',type=str,       default='white',    help='font color / RGBA')
-    parser.add_argument('-n', '--fontratio',type=float,     default=0.08,       help='font size ratio')
-    parser.add_argument('-r', '--padratio', type=float,     default=0.01,       help='padding ratio')
-    parser.add_argument('-i', '--timestamp',action='store_true')
-    parser.add_argument('-o', '--overwrite',action='store_true')
-    parser.add_argument('-v', '--verbose',  action='store_true')
-    
     args = parser.parse_args()
     LOGGER.info(f'Current arguments: {args}')
     
@@ -595,28 +602,18 @@ def main():
     begin = datetime.now()
     LOGGER.info(f'Task start at {begin}.')
     
-    output = capture_multi(args.path, args=args)
-    if output:
-        output = list(output)
-        count_succeeded = 0
-        count_failed = 0
-        count_error = 0
-        for _, result in output:
-            if result == CaptureResult.SUCCEEDED or result == CaptureResult.SKIPPED:
-                count_succeeded += 1
-            elif result == CaptureResult.CAPTURE_ERROR_OCCURED:
-                count_error += 1
-            else:
-                count_failed += 1
-        
-        # Reporting result
-        LOGGER.info(NL.join([f'{result}:\t{file}' for file, result in output]))
-        LOGGER.info(f'Succeeded: {count_succeeded}{NL}' 
-                    + f'Completed with error: {count_error}{NL}' 
-                    + f'Failed: {count_failed}')
-    else:
-        LOGGER.info(f'No files to be captured.')
+    output = list(capture_multi(args.path, args))
+    count_succeeded = sum(r == CaptureResult.SUCCEEDED or r == CaptureResult.SKIPPED for _, r in output)
+    count_failed = sum(r == CaptureResult.CAPTURE_FAILED or r == CaptureResult.CAPTURE_ERROR_OCCURED for _, r in output)
+    
+    LOGGER.info(NL.join([f'{result}:\t{file}' for file, result in output]))
+    LOGGER.info(f'Succeeded: {count_succeeded}{NL}' 
+                + f'Completed with error: {count_failed}{NL}' 
+                + f'Failed: {count_failed}')
     
     end = datetime.now()
     LOGGER.info(f'Task end at {end}. Total time elapsed: {end-begin}.')
+
+if __name__ == "__main__":
+    main()
     
