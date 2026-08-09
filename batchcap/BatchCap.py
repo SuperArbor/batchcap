@@ -64,9 +64,9 @@ def build_parser():
     parser.add_argument('-c', '--fontcolor',type=str,       default='white',    help='font color / RGBA')
     parser.add_argument('-n', '--fontratio',type=float,     default=0.08,       help='font size ratio')
     parser.add_argument('-r', '--padratio', type=float,     default=0.01,       help='padding ratio')
-    parser.add_argument('-i', '--timestamp',action='store_true')
-    parser.add_argument('-o', '--overwrite',action='store_true')
-    parser.add_argument('-v', '--verbose',  action='store_true')
+    parser.add_argument('-i', '--timestamp',action='store_true',                help='add timestamp on the thumbnail')
+    parser.add_argument('-o', '--overwrite',action='store_true',                help='overwrite existing files')
+    parser.add_argument('-v', '--verbose',  action='store_true',                help='verbose output')
 
     return parser
 
@@ -295,7 +295,7 @@ def capture_file_in_sequence(file:str, args, capture_info:dict) -> CaptureResult
                         '-frames:v', '1', 
                         '-loglevel', 'error', 
                         '-f', 'image2', 
-                        captured, '-y']
+                        captured]
                 if args.overwrite:
                     cmd.append('-y')
                     

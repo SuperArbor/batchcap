@@ -10,5 +10,5 @@ batchcap \
     -r 0.01 \
     -t 4x4 \
     -o \
-    -f png
+    -f png \
     
