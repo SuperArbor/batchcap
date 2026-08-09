@@ -1,7 +1,5 @@
 __pycache__
-*.sh
-*.bat
-*.ps1
+uv.lock
 *.json
 *.log
 *.mkv

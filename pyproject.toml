@@ -1,0 +1,9 @@
+[project]
+name = "BatchCap"
+version = "0.1.0"
+description = "A cross-platform configurable tool to create screenshot / capture / thumbnail for single or batch videos as previews. It is designed to run in command line or with scripts."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "loguru", "psutil", "tqdm"
+]
