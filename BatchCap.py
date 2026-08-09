@@ -116,7 +116,7 @@ def escape_chars(text, chars, escape='\\'):
     return text
 
 def capture_file_once_cmd(file:str, args, capture_info:dict):
-    '''Get the command to capture a video according to arguments.
+    r'''Get the command to capture a video according to arguments.
     
     It is done by generating a command and use subprocess to run it. 
     The command will be something like:
@@ -271,10 +271,10 @@ def capture_file_in_sequence(file:str, args, capture_info:dict):
             _, err = run_async(cmd)
             
             if err:
-                logger.error(f'Error occured during capturing {file}:{NL}{suppress_log(err)}')
+                logger.error(f'Error occured.')
                 return CaptureResult.CAPTURE_ERROR_OCCURED
             else:
-                logger.info(f'Succeeded in capturing {file}.')
+                logger.info(f'Succeeded.')
                 return CaptureResult.SUCCEEDED
         except Exception as e:
             raise e
@@ -324,7 +324,7 @@ def capture_file(file:str, args):
         logger.info(f'Failed to probe {file}.')
         return file, CaptureResult.PROBE_FAILED
     
-    logger.info(f'Begin capturing {file} ({info_txt})...')
+    logger.info(info_txt)
     capture_info = {
         'seek': seek, 
         'output_name': output_name, 
@@ -349,10 +349,10 @@ def capture_file(file:str, args):
             try:
                 _, err = run_async(cmd)
                 if err:
-                    logger.error(f'Error occured during capturing {file}:{NL}{suppress_log(err)}')
+                    logger.error(f'Error occured.')
                     result = CaptureResult.CAPTURE_ERROR_OCCURED
                 else:
-                    logger.info(f'Succeeded in capturing {file}.')
+                    logger.info(f'Succeeded.')
                     result = CaptureResult.SUCCEEDED
             except Exception:
                 logger.error(suppress_log(format_exc()))
@@ -362,9 +362,8 @@ def capture_file(file:str, args):
             logger.info(f'Command too long. Switch to sequnce command mode.')
             result = capture_file_in_sequence(file, args, capture_info)
     else:
-        logger.info(f'Capturing {file} in splitted commands.')
+        logger.info(f'Capturing in splitted commands.')
         result = capture_file_in_sequence(file, args, capture_info)
-    logger.info(f'Time elapsed: {datetime.now()-begin}.')
     return file, result
 
 def capture(file:str, args):
@@ -423,7 +422,7 @@ def check_ffmpeg():
     try:
         out, _ = run_async(cmd)
         # \D matches non-digitals for cases like "ffmpeg version n5.0.1"
-        search = re.search(r'ffmpeg version \D*(\d.\d.\d)', out, re.I)
+        search = re.search(r'ffmpeg version \D*(\d.\d.\d?)', out, re.I)
         if search:
             version = search.group(1)
             main_version = int(version.split('.')[0])
