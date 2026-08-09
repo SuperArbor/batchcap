@@ -23,3 +23,4 @@ script_dir = ""
     -t 4x4 \
     -o \
     -f png
+    

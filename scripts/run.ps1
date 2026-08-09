@@ -113,6 +113,3 @@ param(
     ForEach-Object {
         & GetAnsVal $_ | & Replace
     }
-
-
-pause

@@ -46,18 +46,22 @@ class CaptureResult(Enum):
     def __str__(self) -> str:
         return self.name
 
-def run_async(args, stdin=PIPE, stdout=PIPE, stderr=PIPE, multiple=False):
+def run_async(args, stdin=PIPE, stdout=PIPE, stderr=PIPE, multiple=False, verbose=False):
     '''Call the command(s) in another process.
     multiple: whether there are more than one commands in cmds to be chained by pipes.
     '''
     if multiple:
         process = None
         for cmd in args:
+            if verbose:
+                logger.info(f'Running command: {' '.join(cmd)}')
             if process:
                 process = Popen(cmd, stdin=process.stdout, stdout=stdout, stderr=stderr)
             else:
                 process = Popen(cmd, stdin=stdin, stdout=stdout, stderr=stderr)
     else:
+        if verbose:
+            logger.info(f'Running command: {' '.join(args)}')
         process = Popen(args, stdin=stdin, stdout=stdout, stderr=stderr)
     
     out, err = process.communicate()
@@ -73,13 +77,13 @@ def run_async(args, stdin=PIPE, stdout=PIPE, stderr=PIPE, multiple=False):
         raise AsyncError(cmd, out, err)
     return out, err
 
-def probe_file(file:str):
+def probe_file(file:str, args):
     '''Returns basic information of a video.'''
     if not os.path.isfile(file):
         raise FileNotFoundError(f"{file}")
-    args = ['ffprobe', '-show_format', '-show_streams', '-loglevel', 'error', '-of', 'json', file]
+    cmd = ['ffprobe', '-show_format', '-show_streams', '-loglevel', 'error', '-of', 'json', file]
     
-    out, err = run_async(args)
+    out, err = run_async(cmd, verbose=args.verbose)
     if err:
         logger.error(f'Error occured during probing {file}:{NL}{suppress_log(err)}')
         
@@ -227,7 +231,8 @@ def capture_file_in_sequence(file:str, args, capture_info:dict):
                         captured, '-y']
                 if args.overwrite:
                     cmd.append('-y')
-                _, err = run_async(cmd)
+                    
+                _, err = run_async(cmd, verbose=args.verbose)
                 tmp_files.append(captured)
         except Exception as e:
             [os.remove(f) for f in tmp_files]
@@ -268,7 +273,7 @@ def capture_file_in_sequence(file:str, args, capture_info:dict):
                 cmd.extend([output_name])
             
             # Run stacking command
-            _, err = run_async(cmd)
+            _, err = run_async(cmd, verbose=args.verbose)
             
             if err:
                 logger.error(f'Error occured.')
@@ -302,7 +307,7 @@ def capture_file(file:str, args):
     try:
         # Probe file info.
         logger.info(f'Probing file {file}...')
-        info = probe_file(file)
+        info = probe_file(file, args)
         output_name = get_output_name(file, args.format)
         
         duration = info['duration']
@@ -347,7 +352,7 @@ def capture_file(file:str, args):
             sum += len(c)
         if sum < MAX_COMMAND_LENGTH:
             try:
-                _, err = run_async(cmd)
+                _, err = run_async(cmd, verbose=args.verbose)
                 if err:
                     logger.error(f'Error occured.')
                     result = CaptureResult.CAPTURE_ERROR_OCCURED
@@ -421,15 +426,19 @@ def check_ffmpeg():
     cmd = ['ffmpeg', '-version']
     try:
         out, _ = run_async(cmd)
-        # \D matches non-digitals for cases like "ffmpeg version n5.0.1"
-        search = re.search(r'ffmpeg version \D*(\d.\d(.\d)?)', out, re.I)
-        if search:
-            version = search.group(1)
-            main_version = int(version.split('.')[0])
-            return main_version >= MIN_FFMPEG_MAIN_VERSION, version
-        else:
+        first_line = out.splitlines()[0]
+
+        m = re.search(r'ffmpeg version.*?\b(\d+)\.\d+(?:\.\d+)?', first_line, re.I)
+        if not m:
+            logger.warning('Cannot parse ffmpeg version: %r', first_line)
             return False, 'unknown'
-    except:
+
+        main_ver = int(m.group(1))
+        full_ver = m.group(0).split()[2]  # 或直接 m.group(0)
+        return main_ver >= MIN_FFMPEG_MAIN_VERSION, full_ver
+
+    except Exception:
+        logger.exception('ffmpeg detection error')
         return False, 'uninstalled'
 
 if __name__ == '__main__':
@@ -465,6 +474,7 @@ if __name__ == '__main__':
     parser.add_argument('-c', '--fontcolor',type=str,   default='white',                    help='Font color of the timestamp. For example, "red" or "0#00000000".')
     parser.add_argument('-n', '--fontratio',type=float, default=0.08,                       help='Ratio of font size against short edge of each image.')
     parser.add_argument('-r', '--padratio', type=float, default=0.01,                       help='Ratio of padding against short edge of each image.')
+    parser.add_argument('-v', '--verbose',  action='store_true',                            help='Verbose level for command output.')
     
     args = parser.parse_args()
     logger.info(f'Current arguments: {args}')
