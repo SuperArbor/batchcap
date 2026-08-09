@@ -9,7 +9,6 @@ from collections.abc import Iterable
 
 import psutil
 from .Logger import *
-from .Tree import *
 
 # Global constants
 NL = '\n'
@@ -28,6 +27,7 @@ REQUIRED_FILTERS = {
     "select",
     "trim",
 }
+VIDEO_EXT = {'.mp4', '.mkv', '.avi', '.mov', '.wmv', '.m4v', '.flv', '.rmvb', '.rm', '.ts', '.m2ts'}
 FFMPEG = None
 FFPROBE = None
 
@@ -267,7 +267,7 @@ def capture_file_in_sequence(file:str, args, capture_info:dict) -> CaptureResult
             tmp_dir = tempfile.gettempdir()
             # Generating images
             for i in range(c * r):
-                captured = os.path.join(tmp_dir, f'{os.path.basename(output_name)}_{i}').replace('\\', UNIX_SEP)
+                captured = os.path.join(tmp_dir, f'{os.path.basename(output_name)}_{i}')
                 cmd = [FFMPEG, 
                         '-ss', f'{seek + i*interval}', '-i', file, 
                         '-filter_complex', f'[0:v:0]scale=-1:{args.height}[c]', 
@@ -430,70 +430,48 @@ def capture_file(file:str, args) -> tuple[str, CaptureResult]:
         result = capture_file_in_sequence(file, args, capture_info)
     return file, result
 
-def capture_single(path:str, args) -> Iterable[tuple[str, CaptureResult]]:
-    '''Capture a single file or all the files in a directory.'''
-    if os.path.isdir(path):    
-        tree_input = inspect_dir(path, None, args.overwrite, args.format)
-        nodes = tree_input.walk(lambda n: (not n.is_dir()) and is_video(n.id))
-        pths = [node.abs_id for node in nodes]
-        if not pths:
-            LOGGER.warning(f'No files to be captured.')
-            return
-        LOGGER.info(f'Files to be captured under {path}: {len(pths)}')
-        for pth in tqdm(pths):
-            yield capture_file(pth, args)
-    elif os.path.isfile(path):
-        if is_video(path):
-            yield capture_file(path, args)
-        else:
-            LOGGER.warning(f'Invalid argument "path". Path {path} is not a video file.')
-            return
-    else:
-        LOGGER.warning(f'Invalid argument "path". Path {path} is not a directory or path of a video.')
+def capture_multi(paths: list[str], args) -> Iterable[tuple[str, CaptureResult]]:
+    """Capture multiple files in a directory or a list of files."""
+    targets = collect_target_files(paths, args)
+
+    if not targets:
+        LOGGER.warning("No files to be captured.")
         return
 
-def capture_multi(paths:list[str], args) -> Iterable[tuple[str, CaptureResult]]:
-    '''Entry of multiple capture tasks.'''
-    if not isinstance(paths, (list, tuple)):
-        LOGGER.error(f'Invalid argument "path". Path {paths} is not a list or tuple.')
-        return
-    for f in paths:
-        yield from capture_single(f, args)
-                
-def inspect_dir(dir:str, tree:NodeDir=None, overwrite=False, format='png') -> NodeDir:
-    '''Retrieve a directory tree from the real directory.'''
-    if tree == None:
-        tree = NodeDir(dir, None)
-        
-    for file in os.listdir(dir):
-        filename = dir + UNIX_SEP + file
-        if os.path.isdir(filename):
-            tree.mkdir(file)
-            inspect_dir(filename, tree[file], overwrite, format)
-        elif is_video(file): 
-            output_name = get_output_name(filename, format)
-            if not os.path.exists(output_name) or overwrite:
-                tree.touch(file)
-    return tree
+    LOGGER.info(f'Total files to capture: {len(targets)}')
+
+    for pth in tqdm(targets, desc="Capturing"):
+        yield capture_file(pth, args)
+
+def scan_dir(root: str, overwrite:bool, fmt:str='png') -> list[str]:
+    root = os.path.abspath(root)
+    out = []
+    for cur, _, files in os.walk(root):
+        for f in files:
+            if is_video(f):
+                full = os.path.join(cur, f)
+                if overwrite or not os.path.exists(get_output_name(full, fmt)):
+                    out.append(full)
+    return out
+
+def collect_target_files(paths: list[str], args) -> list[str]:
+    """Collect all the target files to be captured from the given paths."""
+    targets = []
+    for p in paths:
+        p = os.path.abspath(p)
+        if os.path.isdir(p):
+            targets.extend(scan_dir(p, args.overwrite, args.format))
+        elif is_video(p):
+            out = get_output_name(p, args.format)
+            if args.overwrite or not os.path.exists(out):
+                targets.append(p)
+    return targets
+
+def is_video(name: str) -> bool:
+    return os.path.splitext(name.lower())[1] in VIDEO_EXT
 
 def get_output_name(file:str, format:str) -> str:
     return f'{file}.cap.{format}'
-
-def sort_tree(tree:NodeDir) -> None:
-    '''Remove unneeded branches in the tree.'''
-    
-    nodes = tree.walk()
-    resort = False
-    for node in nodes:
-        if node.is_leaf():
-            if node.is_dir():
-                resort = True
-                node.pop()
-    if resort:
-        sort_tree(tree)
-
-def is_video(file:str) -> bool:
-    return file.lower().strip().endswith(('.mp4', '.mkv', '.avi', '.mov', '.wmv', '.m4v', '.flv', '.rmvb', 'rm', 'ts', 'm2ts'))
 
 def get_ffmpeg_bin() -> str:
     """return the path of the ffmpeg binary"""
@@ -503,7 +481,7 @@ def get_ffprobe_bin() -> str:
     """return the path of the ffprobe binary"""
     return shutil.which("ffprobe")
 
-def check_ffmpeg_features(ffmpeg_bin) -> tuple[bool, str]:
+def check_ffmpeg_features(ffmpeg_bin: str) -> tuple[bool, str]:
     """
     returns a tuple of (ok, missing_filters) where:
     - ok is True if all required filters are present, False otherwise
@@ -636,6 +614,8 @@ def main():
         LOGGER.info(f'Succeeded: {count_succeeded}{NL}' 
                     + f'Completed with error: {count_error}{NL}' 
                     + f'Failed: {count_failed}')
+    else:
+        LOGGER.info(f'No files to be captured.')
     
     end = datetime.now()
     LOGGER.info(f'Task end at {end}. Total time elapsed: {end-begin}.')
