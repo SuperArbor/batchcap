@@ -40,7 +40,7 @@ The arguments below are used to specify the input and output behaviors.
 
 *-n / --fontratio* (type: float, default: 0.08): Ratio of font size against short edge of each image.
 
-*-v / --verbose* (store true): Verbose level for command output.
+*-v / --verbose* (store true): Verbose level for ffmpeg command output.
 
 ### Run the tool
 
@@ -63,7 +63,7 @@ On Windows, although both cmd.exe and powershell.exe can do the job, powershell 
 # -t 4x4    The screenshot is made up of 16 captured images with 4 columns and 4 rows.
 # -o        Overwrite existing files with the same file name with the output files.
 # -f png    Output png format picture.
-# -v        Verbose level for command output.
+# -v        Verbose level for ffmpeg command output.
 path_to_python path_to_batchcap.py -p path -s 1 -i -c yellow -n 0.08 -g 270 -r 0.01 -t 4x4 -o -f png
 ```
 

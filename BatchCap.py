@@ -15,7 +15,7 @@ NL = '\n'
 MIN_FONTSIZE = 1
 MAX_FONTSIZE = 999
 MAX_LOG_LENGTH = 2048           # Maximum length of an entry of logging
-MEMORY_PARA = 6                 # Coefficient to decide the capture method to call
+MEMORY_PARA = 10                # Coefficient to decide the capture method to call
 MIN_FFMPEG_MAIN_VERSION = 4
 MAX_COMMAND_LENGTH = 20000      # Maximum length of the command for the system to run
 
@@ -367,7 +367,7 @@ def capture_file(file:str, args):
             logger.info(f'Command too long. Switch to sequnce command mode.')
             result = capture_file_in_sequence(file, args, capture_info)
     else:
-        logger.info(f'Capturing in splitted commands.')
+        logger.info(f'Capturing in splitted commands according to available memory.')
         result = capture_file_in_sequence(file, args, capture_info)
     return file, result
 
@@ -474,7 +474,7 @@ if __name__ == '__main__':
     parser.add_argument('-c', '--fontcolor',type=str,   default='white',                    help='Font color of the timestamp. For example, "red" or "0#00000000".')
     parser.add_argument('-n', '--fontratio',type=float, default=0.08,                       help='Ratio of font size against short edge of each image.')
     parser.add_argument('-r', '--padratio', type=float, default=0.01,                       help='Ratio of padding against short edge of each image.')
-    parser.add_argument('-v', '--verbose',  action='store_true',                            help='Verbose level for command output.')
+    parser.add_argument('-v', '--verbose',  action='store_true',                            help='Verbose level for ffmpeg command output.')
     
     args = parser.parse_args()
     logger.info(f'Current arguments: {args}')
