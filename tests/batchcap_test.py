@@ -40,12 +40,20 @@ class TestBatchCapCLI(unittest.TestCase):
             "--overwrite",
         )
         self.assertEqual(res.returncode, 0)
+        
+    def test_wildcard(self):
+        """wildcard"""
+        res = self._run(
+            TEST_DIR / "*.mp4",
+            "-t", "2x1",
+            "--overwrite",
+        )
+        self.assertEqual(res.returncode, 0)
 
     def test_mixed_args(self):
         """mixed paths"""
         res = self._run(
-            TEST_DIR / "file_1.mp4",
-            TEST_DIR / "file_2.mp4",
+            TEST_DIR / "*.mp4",
             TEST_DIR / "folder",
             "--overwrite",
             "-v",

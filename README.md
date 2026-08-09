@@ -23,8 +23,12 @@ uv tool install -e .
 
 ```pwsh
 batchcap [-h] [-s SEEK] [-g HEIGHT] [-t TILE] [-o] [-i] [-f FORMAT] [-c FONTCOLOR] [-n FONTRATIO] [-r PADRATIO] [-v] path [path ...]
+```
 
-The argument `path` specifies the video(s) to be captured, or a directory that includes multiple video files.
+The argument `path` specifies the video(s) to be captured, or a directory that includes multiple video files. Wildcard is supported, such as:
+
+```
+batchcap *.mp4 folder/*.mkv
 ```
 
 ### Options

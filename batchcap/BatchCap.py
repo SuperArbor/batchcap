@@ -1,4 +1,4 @@
-import os, sys, tempfile, json, shutil, argparse
+import os, sys, tempfile, json, shutil, argparse, glob
 from enum import Enum
 from subprocess import Popen, PIPE
 from traceback import format_exc
@@ -463,6 +463,13 @@ def capture_multi(paths: list[str], args) -> Iterable[tuple[str, CaptureResult]]
     for pth in tqdm(targets, desc="Capturing"):
         yield capture_file(pth, args)
 
+def resolve_paths(patterns:list[str]) -> list[str]:
+    paths = []
+    for pat in patterns:
+        matched = glob.glob(pat) if any(c in pat for c in '*?[') else None
+        paths.extend(matched if matched else [pat])
+    return [os.path.abspath(p) for p in paths]
+
 def scan_dir(root: str, overwrite:bool, fmt:str='png') -> list[str]:
     root = os.path.abspath(root)
     out = []
@@ -566,8 +573,9 @@ def main():
     LOGGER.info(f'Current arguments: {args}')
     
     # transfer to list
-    args.path = (args.path if isinstance(args.path, (list, tuple)) 
+    paths = (args.path if isinstance(args.path, (list, tuple)) 
              else [p for p in args.path])
+    args.path = resolve_paths(paths)
     
     try:
         if not all(os.path.exists(p) for p in args.path):
