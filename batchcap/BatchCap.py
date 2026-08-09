@@ -573,16 +573,11 @@ def main():
     LOGGER.info(f'Current arguments: {args}')
     
     # transfer to list
-    paths = (args.path if isinstance(args.path, (list, tuple)) 
-             else [p for p in args.path])
-    args.path = resolve_paths(paths)
+    paths = args.path or []
+    paths = resolve_paths([p for p in paths])
+    args.path = paths
     
     try:
-        if not all(os.path.exists(p) for p in args.path):
-            bad = [p for p in args.path if not os.path.exists(p)]
-            LOGGER.error(f'Some paths do not exist: {bad}')
-            sys.exit(1)
-            
         if args.height < 0:
             LOGGER.error(f'Invalid argument "-g/--height". Height {args.height} invalid.')
             sys.exit(1)
