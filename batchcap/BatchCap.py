@@ -124,7 +124,6 @@ def run_async(
         cmd_name = args[0][0] if multiple else args[0]
         raise AsyncError(cmd_name, out, err, retcode)
 
-    LOGGER.info(f"return code: {retcode}\noutput: {suppress_log(out)}\nerr: {err}")
     return retcode, out, err
 
 def probe_file(file:str, args) -> dict:
