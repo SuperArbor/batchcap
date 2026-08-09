@@ -8,6 +8,12 @@ A convenient batch capture tool for both Windows and Linux. Below is an example.
 
 FFmpeg 4 or higher version should be installed. As far as I know, FFmpeg 3 lacks some APIs, causing the tool to fail.
 
+Install other third party dependencies with uv.
+
+```powershell
+uv sync
+```
+
 ## Usage
 
 ### Arguments
