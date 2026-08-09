@@ -1,23 +1,55 @@
+import os, sys, tempfile, json, shutil, argparse
 from enum import Enum
-import os, sys, tempfile
-import json, re
-import psutil
-import argparse
 from subprocess import Popen, PIPE
-from loguru import logger
-from .Tree import *
 from traceback import format_exc
 from tqdm import tqdm
 from datetime import datetime, timedelta
 from fractions import Fraction
 
+import psutil
+from .Logger import *
+from .Tree import *
+
+# Global constants
 NL = '\n'
 MIN_FONTSIZE = 1
 MAX_FONTSIZE = 999
 MAX_LOG_LENGTH = 2048           # Maximum length of an entry of logging
 MEMORY_PARA = 10                # Coefficient to decide the capture method to call
-MIN_FFMPEG_MAIN_VERSION = 4
 MAX_COMMAND_LENGTH = 20000      # Maximum length of the command for the system to run
+REQUIRED_FILTERS = {
+    "scale",
+    "drawtext",
+    "format",
+    "pad",
+    "xstack",
+    "tile",
+    "select",
+    "trim",
+}
+FFMPEG = None
+FFPROBE = None
+
+# logger
+LOGGER = logging.getLogger("batchcap")
+LOGGER.setLevel(logging.DEBUG)
+LOGGER.propagate = False
+console = logging.StreamHandler(sys.stderr)
+console.setFormatter(ConsoleColorFormatter("%(message)s"))
+LOGGER.addHandler(console)
+log_file = os.path.join(os.path.dirname(__file__), "cap_log.log")
+file_fmt = (
+    "[%(asctime)s] | %(levelname)-8s | %(name)s:%(lineno)d\n"
+    " %(message)s\n"
+)
+file_h = RotatingFileHandler(
+    log_file,
+    maxBytes=16 * 1024 * 1024,
+    backupCount=10,
+    encoding="utf-8",
+)
+file_h.setFormatter(logging.Formatter(file_fmt))
+LOGGER.addHandler(file_h)
 
 if os.name == 'nt':
     FONTFILE = 'C:/Windows/Fonts/arial.ttf'
@@ -46,7 +78,7 @@ class CaptureResult(Enum):
     def __str__(self) -> str:
         return self.name
 
-def run_async(args, stdin=PIPE, stdout=PIPE, stderr=PIPE, multiple=False, verbose=False):
+def run_async(args, stdin=PIPE, stdout=PIPE, stderr=PIPE, multiple=False, verbose=False) -> tuple[str, str]:
     '''Call the command(s) in another process.
     multiple: whether there are more than one commands in cmds to be chained by pipes.
     '''
@@ -54,14 +86,14 @@ def run_async(args, stdin=PIPE, stdout=PIPE, stderr=PIPE, multiple=False, verbos
         process = None
         for cmd in args:
             if verbose:
-                logger.info(f'Running command: {' '.join(cmd)}')
+                LOGGER.info(f'Running command: {' '.join(cmd)}')
             if process:
                 process = Popen(cmd, stdin=process.stdout, stdout=stdout, stderr=stderr)
             else:
                 process = Popen(cmd, stdin=stdin, stdout=stdout, stderr=stderr)
     else:
         if verbose:
-            logger.info(f'Running command: {' '.join(args)}')
+            LOGGER.info(f'Running command: {args}')
         process = Popen(args, stdin=stdin, stdout=stdout, stderr=stderr)
     
     out, err = process.communicate()
@@ -77,15 +109,13 @@ def run_async(args, stdin=PIPE, stdout=PIPE, stderr=PIPE, multiple=False, verbos
         raise AsyncError(cmd, out, err)
     return out, err
 
-def probe_file(file:str, args):
+def probe_file(file:str, args) -> dict:
     '''Returns basic information of a video.'''
-    if not os.path.isfile(file):
-        raise FileNotFoundError(f"{file}")
-    cmd = ['ffprobe', '-show_format', '-show_streams', '-loglevel', 'error', '-of', 'json', file]
+    cmd = [FFPROBE, '-show_format', '-show_streams', '-loglevel', 'error', '-of', 'json', file]
     
     out, err = run_async(cmd, verbose=args.verbose)
     if err:
-        logger.error(f'Error occured during probing {file}:{NL}{suppress_log(err)}')
+        LOGGER.error(f'Error occured during probing {file}:{NL}{suppress_log(err)}')
         
     probe = json.loads(out)
     video_info = next(s for s in probe['streams'] if s['codec_type'] == 'video')
@@ -101,14 +131,14 @@ def probe_file(file:str, args):
     size = float(probe['format']['size'])
     return {'avg_frame_rate': frame_rate, 'width': width, 'height': height, 'duration': duration, 'size': size}
 
-def suppress_log(message:str, max_length=MAX_LOG_LENGTH):
+def suppress_log(message:str, max_length=MAX_LOG_LENGTH) -> str:
     '''Suppress logging output in case the content is too long.'''
     if len(message) <= max_length:
         return message
     else:
         return message[:max_length] + '...'
 
-def escape_chars(text, chars, escape='\\'):
+def escape_chars(text, chars, escape='\\') -> str:
     """Helper function to escape uncomfortable characters."""
     text = str(text)
     chars = list(set(chars))
@@ -119,7 +149,7 @@ def escape_chars(text, chars, escape='\\'):
         text = text.replace(ch, escape + ch)
     return text
 
-def capture_file_once_cmd(file:str, args, capture_info:dict):
+def capture_file_once_cmd(file:str, args, capture_info:dict) -> list:
     r'''Get the command to capture a video according to arguments.
     
     It is done by generating a command and use subprocess to run it. 
@@ -163,7 +193,7 @@ def capture_file_once_cmd(file:str, args, capture_info:dict):
     fontsize = capture_info['fontsize']
     
     # Generating command
-    cmd = ['ffmpeg']
+    cmd = [FFMPEG]
     for i in range(c * r):
         cmd.extend(['-ss', f'{seek + i*interval}', '-i', file])
     
@@ -200,7 +230,7 @@ def capture_file_once_cmd(file:str, args, capture_info:dict):
         cmd.extend([output_name])
     return cmd
 
-def capture_file_in_sequence(file:str, args, capture_info:dict):
+def capture_file_in_sequence(file:str, args, capture_info:dict) -> CaptureResult:
     '''Captures a video according to arguments.
     To avoid memory shortage or when the command generated in capture_file_once is too long, 
     the task is accomplished by splitting the command to several sub commands.
@@ -220,8 +250,8 @@ def capture_file_in_sequence(file:str, args, capture_info:dict):
             tmp_dir = tempfile.gettempdir()
             # Generating images
             for i in range(c * r):
-                captured = os.path.join(tmp_dir, f'{os.path.basename(output_name)}_{i}').replace('\\', SEP)
-                cmd = ['ffmpeg', 
+                captured = os.path.join(tmp_dir, f'{os.path.basename(output_name)}_{i}').replace('\\', UNIX_SEP)
+                cmd = [FFMPEG, 
                         '-ss', f'{seek + i*interval}', '-i', file, 
                         '-filter_complex', f'[0:v:0]scale=-1:{args.height}[c]', 
                         '-map', '[c]', 
@@ -240,7 +270,7 @@ def capture_file_in_sequence(file:str, args, capture_info:dict):
         
         try:
              # Generating stacking command
-            cmd = ['ffmpeg']
+            cmd = [FFMPEG]
             for i in range(c * r):
                 cmd.extend(['-f', 'image2', '-i', tmp_files[i]])
             cmd.append('-filter_complex')
@@ -276,21 +306,21 @@ def capture_file_in_sequence(file:str, args, capture_info:dict):
             _, err = run_async(cmd, verbose=args.verbose)
             
             if err:
-                logger.error(f'Error occured.')
+                LOGGER.error(f'Error occured.')
                 return CaptureResult.CAPTURE_ERROR_OCCURED
             else:
-                logger.info(f'Succeeded.')
+                LOGGER.info(f'Succeeded.')
                 return CaptureResult.SUCCEEDED
         except Exception as e:
             raise e
         finally:
             [os.remove(f) for f in tmp_files]
     except Exception:
-        logger.error(suppress_log(format_exc()))
-        logger.info(f'Failed to capture {file}.')
+        LOGGER.error(suppress_log(format_exc()))
+        LOGGER.info(f'Failed to capture {file}.')
         return CaptureResult.CAPTURE_FAILED
 
-def capture_file(file:str, args):
+def capture_file(file:str, args) -> tuple[str, CaptureResult]:
     '''Probe and capture a file.
     There are two ways to do that.
     (1) Compile the task into one command and run it once;
@@ -300,13 +330,13 @@ def capture_file(file:str, args):
     small, but it is also more memory consuming. So this method chooses one of them to execute.
     '''
     if not os.path.isfile(file):
-        logger.error(f'Specified file {file} does not exist.')
+        LOGGER.error(f'Specified file {file} does not exist.')
         return file, CaptureResult.PROBE_FAILED
     
     begin = datetime.now()
     try:
         # Probe file info.
-        logger.info(f'Probing file {file}...')
+        LOGGER.info(f'Probing file {file}...')
         info = probe_file(file, args)
         output_name = get_output_name(file, args.format)
         
@@ -325,11 +355,11 @@ def capture_file(file:str, args):
         
         info_txt = f"size: {size:.2f} MB, duration: {timedelta(seconds=info['duration'])}, ratio: { info['width']} x {info['height']}, average frame rate: {info['avg_frame_rate']:.3f}"
     except Exception:
-        logger.error(suppress_log(format_exc()))
-        logger.info(f'Failed to probe {file}.')
+        LOGGER.error(suppress_log(format_exc()))
+        LOGGER.info(f'Failed to probe {file}.')
         return file, CaptureResult.PROBE_FAILED
     
-    logger.info(info_txt)
+    LOGGER.info(info_txt)
     capture_info = {
         'seek': seek, 
         'output_name': output_name, 
@@ -345,7 +375,7 @@ def capture_file(file:str, args):
     
     # Select a method according to the file size and the current available memory
     if available_memory * MEMORY_PARA  > (size * c * r):
-        logger.info(f'Trying to capture {file} in one command.')
+        LOGGER.info(f'Trying to capture {file} in one command.')
         cmd = capture_file_once_cmd(file, args, capture_info)
         sum = 0
         for c in cmd:
@@ -354,20 +384,20 @@ def capture_file(file:str, args):
             try:
                 _, err = run_async(cmd, verbose=args.verbose)
                 if err:
-                    logger.error(f'Error occured.')
+                    LOGGER.error(f'Error occured.')
                     result = CaptureResult.CAPTURE_ERROR_OCCURED
                 else:
-                    logger.info(f'Succeeded.')
+                    LOGGER.info(f'Succeeded.')
                     result = CaptureResult.SUCCEEDED
             except Exception:
-                logger.error(suppress_log(format_exc()))
-                logger.info(f'Failed to capture {file}.')
+                LOGGER.error(suppress_log(format_exc()))
+                LOGGER.info(f'Failed to capture {file}.')
                 result = CaptureResult.CAPTURE_FAILED
         else:
-            logger.info(f'Command too long. Switch to sequnce command mode.')
+            LOGGER.info(f'Command too long. Switch to sequnce command mode.')
             result = capture_file_in_sequence(file, args, capture_info)
     else:
-        logger.info(f'Capturing in splitted commands according to available memory.')
+        LOGGER.info(f'Capturing in splitted commands according to available memory.')
         result = capture_file_in_sequence(file, args, capture_info)
     return file, result
 
@@ -378,9 +408,9 @@ def capture(file:str, args):
         nodes = tree_input.walk(lambda n: (not n.is_dir()) and is_video(n.id))
         paths = [node.abs_id for node in nodes]
         if not paths:
-            logger.warning(f'No files to be captured.')
+            LOGGER.warning(f'No files to be captured.')
             return
-        logger.info(f'Number of files to be captured: {len(paths)}')
+        LOGGER.info(f'Number of files to be captured: {len(paths)}')
         for file in tqdm(paths):
             yield capture_file(file, args)
     else:
@@ -392,7 +422,7 @@ def inspect_dir(dir:str, tree:NodeDir=None, overwrite=False, format='png') -> No
         tree = NodeDir(dir, None)
         
     for file in os.listdir(dir):
-        filename = dir + SEP + file
+        filename = dir + UNIX_SEP + file
         if os.path.isdir(filename):
             tree.mkdir(file)
             inspect_dir(filename, tree[file], overwrite, format)
@@ -402,10 +432,10 @@ def inspect_dir(dir:str, tree:NodeDir=None, overwrite=False, format='png') -> No
                 tree.touch(file)
     return tree
 
-def get_output_name(file:str, format:str):
+def get_output_name(file:str, format:str) -> str:
     return f'{file}.cap.{format}'
 
-def sort_tree(tree:NodeDir):
+def sort_tree(tree:NodeDir) -> None:
     '''Remove unneeded branches in the tree.'''
     
     nodes = tree.walk()
@@ -421,78 +451,104 @@ def sort_tree(tree:NodeDir):
 def is_video(file:str) -> bool:
     return file.lower().strip().endswith(('.mp4', '.mkv', '.avi', '.mov', '.wmv', '.m4v', '.flv', '.rmvb', 'rm', 'ts', 'm2ts'))
 
-def check_ffmpeg():
-    '''Return the installed ffmpeg version and whether it meets the requirement.'''
-    cmd = ['ffmpeg', '-version']
-    try:
-        out, _ = run_async(cmd)
-        first_line = out.splitlines()[0]
+def get_ffmpeg_bin() -> str:
+    """return the path of the ffmpeg binary"""
+    return shutil.which("ffmpeg")
 
-        m = re.search(r'ffmpeg version.*?\b(\d+)\.\d+(?:\.\d+)?', first_line, re.I)
-        if not m:
-            logger.warning('Cannot parse ffmpeg version: %r', first_line)
-            return False, 'unknown'
+def get_ffprobe_bin() -> str:
+    """return the path of the ffprobe binary"""
+    return shutil.which("ffprobe")
 
-        main_ver = int(m.group(1))
-        full_ver = m.group(0).split()[2]  # 或直接 m.group(0)
-        return main_ver >= MIN_FFMPEG_MAIN_VERSION, full_ver
+def check_ffmpeg_features(ffmpeg_bin) -> tuple[bool, str]:
+    """
+    returns a tuple of (ok, missing_filters) where:
+    - ok is True if all required filters are present, False otherwise
+    - reason why not ok
+    """
+    if not ffmpeg_bin:
+        return False, "ffmpeg not found in PATH"
 
-    except Exception:
-        logger.exception('ffmpeg detection error')
-        return False, 'uninstalled'
+    out, _ = run_async([ffmpeg_bin, "-version"])
+    if "ffmpeg version" not in out.lower():
+        return False, "ffmpeg binary broken"
 
+    flist, _ = run_async([ffmpeg_bin, "-filters"])
+
+    def has_filter(name) -> bool:
+        for line in flist.splitlines():
+            cols = line.strip().split()
+            if cols and cols[0] == name:
+                return True
+            if cols and len(cols) > 1 and name in cols[1]:
+                return True
+        return False
+
+    missing = []
+    for f in REQUIRED_FILTERS:
+        if not has_filter(f):
+            missing.append(f)
+
+    if missing:
+        return False, f"Missing filters: {', '.join(missing)}"
+
+    return True, ""
+    
 def main():
-    valid, version = check_ffmpeg()
-    if valid:
-        logger.info(f'ffmpeg {version} available.')
+    global FFMPEG, FFPROBE
+    # check FFmpeg and FFprobe
+    FFMPEG = get_ffmpeg_bin()
+    
+    if FFMPEG:
+        LOGGER.info(f'Using FFmpeg: {FFMPEG}.')
     else:
-        logger.error(f'Not able to find a valid ffmpeg. ffmpeg with minimal version {MIN_FFMPEG_MAIN_VERSION} is required. The ffmpeg installed is {version}.')
+        LOGGER.error(f'FFmpeg not found in PATH. Please install FFmpeg and add it to PATH.')
+        sys.exit(1)
+        
+    FFPROBE = get_ffprobe_bin()
+    if FFPROBE:
+        LOGGER.info(f'Using FFprobe: {FFPROBE}.')
+    else:
+        LOGGER.error(f'FFprobe not found in PATH. Please install FFmpeg and add it to PATH.')
+        sys.exit(1)
+        
+    valid, reason = check_ffmpeg_features(FFMPEG)
+    if valid:
+        LOGGER.info(f'FFmpeg features supported.')
+    else:
+        LOGGER.error(reason)
         sys.exit(1)
     
-    log_file = os.path.join(os.path.dirname(__file__), 'cap_log.log')
-    log_format_console = "\n<level>{message}</level>\n"
-    log_format_file = (
-        "[<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green>] | "
-        "<level>{level: <8}</level> | "
-        "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan>\n"
-        " <level>{message}</level>\n"
-        )
-    logger.configure(
-        handlers=[
-            dict(sink=sys.stderr, format=log_format_console),
-            dict(sink=log_file, rotation='16MB', encoding='utf-8', enqueue=True, retention='10 days', format=log_format_file)
-        ])
-    
+    # arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument('-p', '--path',     type=str,   default=os.path.dirname(__file__),  help='Path of directory or file.')
-    parser.add_argument('-s', '--seek',     type=float, default=0,                          help='Time of the first capture.')
-    parser.add_argument('-g', '--height',   type=int,   default=270,                        help='Height of each image in the capture.')
-    parser.add_argument('-t', '--tile',     type=str,   default='4x4',                      help='Tile shaple of the screen shots.')
-    parser.add_argument('-o', '--overwrite',action='store_true',                            help='Whether or not overwrite existing files.')
-    parser.add_argument('-i', '--timestamp',action='store_true',                            help='Whether or not show present timestamp on captures.')
-    parser.add_argument('-f', '--format',   type=str,   default='png',                      help='Output format.')
-    parser.add_argument('-c', '--fontcolor',type=str,   default='white',                    help='Font color of the timestamp. For example, "red" or "0#00000000".')
-    parser.add_argument('-n', '--fontratio',type=float, default=0.08,                       help='Ratio of font size against short edge of each image.')
-    parser.add_argument('-r', '--padratio', type=float, default=0.01,                       help='Ratio of padding against short edge of each image.')
-    parser.add_argument('-v', '--verbose',  action='store_true',                            help='Verbose level for ffmpeg command output.')
+    parser.add_argument('-p', '--path',     type=str,   default=os.path.dirname(__file__),  help='Path of directory or file')
+    parser.add_argument('-s', '--seek',     type=float, default=0,                          help='Time of the first capture')
+    parser.add_argument('-g', '--height',   type=int,   default=270,                        help='Height of each image in the capture')
+    parser.add_argument('-t', '--tile',     type=str,   default='4x4',                      help='Tile shaple of the screen shots')
+    parser.add_argument('-o', '--overwrite',action='store_true',                            help='Whether or not overwrite existing files')
+    parser.add_argument('-i', '--timestamp',action='store_true',                            help='Whether or not show present timestamp on captures')
+    parser.add_argument('-f', '--format',   type=str,   default='png',                      help='Output format')
+    parser.add_argument('-c', '--fontcolor',type=str,   default='white',                    help='Font color of the timestamp. Could be strings like "red" or RGBA values like "0#00000000"')
+    parser.add_argument('-n', '--fontratio',type=float, default=0.08,                       help='Ratio of font size against short edge of each image')
+    parser.add_argument('-r', '--padratio', type=float, default=0.01,                       help='Ratio of padding against short edge of each image')
+    parser.add_argument('-v', '--verbose',  action='store_true',                            help='Verbose level for ffmpeg command output')
     
     args = parser.parse_args()
-    logger.info(f'Current arguments: {args}')
+    LOGGER.info(f'Current arguments: {args}')
     
     try:
         if not os.path.exists(args.path):
-            logger.error(f'Invalid argument "-p/--path". Path {args.path} does not exsist.')
+            LOGGER.error(f'Invalid argument "-p/--path". Path {args.path} does not exsist.')
             sys.exit(1)
         if args.height < 0:
-            logger.error(f'Invalid argument "-g/--height". Height {args.height} invalid.')
+            LOGGER.error(f'Invalid argument "-g/--height". Height {args.height} invalid.')
             sys.exit(1)
         if args.seek < 0:
-            logger.error(f'Invalid argument "-s/--seek". Seek {args.seek} invalid.')
+            LOGGER.error(f'Invalid argument "-s/--seek". Seek {args.seek} invalid.')
             sys.exit(1)
         c, r = args.tile.split('x')
         c, r = int(c), int(r)
         if c < 1 or r < 1 or (c == 1 and r == 1):
-            logger.error(f'Invalid argument "-t/--tile". Tile {args.tile} invalid.')
+            LOGGER.error(f'Invalid argument "-t/--tile". Tile {args.tile} invalid.')
             sys.exit(1)
         if args.padratio < 0:
             args.padratio = 0.01
@@ -502,19 +558,20 @@ def main():
             args.overwrite = True
             args.timestamp = True
     except Exception:
-        logger.error(f'Failed to parse arguments.')
+        LOGGER.error(f'Failed to parse arguments.')
         sys.exit(1)
     
-    args.path = args.path.replace('\\', SEP)
+    # task
+    args.path = args.path.replace('\\', UNIX_SEP)
     begin = datetime.now()
-    logger.info(f'Task start at {begin}.')
+    LOGGER.info(f'Task start at {begin}.')
     
     output = list(capture(args.path, args=args))
     if output:
         count_succeeded = 0
         count_failed = 0
         count_error = 0
-        for file, result in output:
+        for _, result in output:
             if result == CaptureResult.SUCCEEDED:
                 count_succeeded += 1
             elif result == CaptureResult.CAPTURE_ERROR_OCCURED:
@@ -523,11 +580,11 @@ def main():
                 count_failed += 1
         
         # Reporting result
-        logger.info(NL.join([f'{result}:\t{file}' for file, result in output]))
-        logger.info(f'Succeeded: {count_succeeded}{NL}' 
+        LOGGER.info(NL.join([f'{result}:\t{file}' for file, result in output]))
+        LOGGER.info(f'Succeeded: {count_succeeded}{NL}' 
                     + f'Completed with error: {count_error}{NL}' 
                     + f'Failed: {count_failed}')
     
     end = datetime.now()
-    logger.info(f'Task end at {end}. Total time elapsed: {end-begin}.')
+    LOGGER.info(f'Task end at {end}. Total time elapsed: {end-begin}.')
     

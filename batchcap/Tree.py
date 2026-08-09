@@ -1,15 +1,15 @@
 from abc import ABC, abstractmethod
 import os
-SEP=os.sep
+UNIX_SEP=os.sep
 
 class NodeObject(ABC):
     '''Base class for NodeFile and NodeDir.'''
     def __init__(self, id:str, dir, is_dir=False):
         self.id = id
         if dir:
-            self.abs_id = (dir.abs_id if not dir.abs_id.endswith(SEP) else dir.abs_id[:-len(SEP)]) + SEP + id
+            self.abs_id = (dir.abs_id if not dir.abs_id.endswith(UNIX_SEP) else dir.abs_id[:-len(UNIX_SEP)]) + UNIX_SEP + id
         else:
-            self.abs_id = id if id else SEP
+            self.abs_id = id if id else UNIX_SEP
         self._is_dir = is_dir
         self.dir = dir
         self.data = None
@@ -105,7 +105,7 @@ class NodeDir(NodeObject):
 
     def touch(self, path:str):
         '''Create a file under the specified directory.'''
-        sections = path.split(SEP)
+        sections = path.split(UNIX_SEP)
         cnt = self
         for sect in sections[:-1]:
             if sect not in cnt.elements.keys():
@@ -118,7 +118,7 @@ class NodeDir(NodeObject):
     
     def mkdir(self, path:str):
         '''Create a sub directory under the specified directory.'''
-        sections = path.split(SEP)
+        sections = path.split(UNIX_SEP)
         cnt = self
         for sect in sections:
             if sect not in cnt.elements.keys():
@@ -129,7 +129,7 @@ class NodeDir(NodeObject):
 
     def rm(self, path:str):
         '''Remove a node from the specified directory.'''
-        sections = path.split(SEP)
+        sections = path.split(UNIX_SEP)
         cnt = self
         for sect in sections:
             if sect in cnt.elements.keys():
@@ -150,10 +150,10 @@ class NodeDir(NodeObject):
         if not path:
             return self
         
-        sections = path.split(SEP)
+        sections = path.split(UNIX_SEP)
         if sections[0] == self.get_root_id():
             root = self.get_root()
-            return root.cd(SEP.join(sections[1:]))
+            return root.cd(UNIX_SEP.join(sections[1:]))
         
         cnt = self
         for sect in sections:
@@ -195,16 +195,16 @@ if __name__ == "__main__":
     filter = lambda n: n.get_data() != 'remove'
     print(f"Before modifying:")
     print(root.ls(path='', filter=filter))
-    print(f"cd to f'a{SEP}h'")
-    print(root.cd(f'a{SEP}h'))
+    print(f"cd to f'a{UNIX_SEP}h'")
+    print(root.cd(f'a{UNIX_SEP}h'))
     
     print(f"rm a/h from {root}")
-    root.rm(f'a{SEP}h')
+    root.rm(f'a{UNIX_SEP}h')
     print(f"After modifying:")
     print(root.ls(path='', filter=filter, abs_id=True))
     
     print(f"cd to 'c/e' from {c}")
-    print(c.cd(f'{SEP}c{SEP}e'))
+    print(c.cd(f'{UNIX_SEP}c{UNIX_SEP}e'))
     print(f"ls from c")
     print(c.ls(path='', filter=filter))
     

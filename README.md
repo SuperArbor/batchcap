@@ -6,12 +6,16 @@ A convenient batch capture tool for both Windows and Linux. Below is an example.
 
 ## Prerequisites
 
-FFmpeg 4 or higher version should be installed. As far as I know, FFmpeg 3 lacks some APIs, causing the tool to fail. You can download the latest build from https://github.com/GyanD/codexffmpeg/releases/latest.
+FFmpeg with the following filters should be installed.
+```
+scale, drawtext, format, pad, xstack, tile, select, trim
+``` 
+You can download the latest build from https://github.com/GyanD/codexffmpeg/releases/latest on Windows or https://github.com/BtbN/FFmpeg-Builds/releases/latest on Linux.
 
 ## Install as tool with UV
 
 ```pwsh
-cd BatchCap
+cd batchcap
 uv tool install -e .
 ```
 
@@ -64,7 +68,7 @@ batchcap -p <path_or_directory> -s 1 -i -c yellow -n 0.08 -g 270 -r 0.01 -t 4x4 
 
 #### Run with script
 
-To handle a batch of videos, especially those under a specific directory, running with the scripts under the scripts folder is recommended. The idea is:
+To handle a batch of videos, especially those under a specific directory, running with the scripts under the scripts folder is recommended.
 
 (1) Put the script file under the folder of the videos;
 
