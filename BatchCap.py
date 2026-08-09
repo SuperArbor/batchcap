@@ -141,7 +141,7 @@ def capture_file_once_cmd(file:str, args, capture_info:dict):
     ['ffmpeg',
         '-i', 'video.mkv', 
         '-filter_complex', 
-            '[0]select=not(mod(n - 0\, 308.0)) * not(lt(n\, 0))[s0];[s0]scale=-1:270[s1];[s1]tile=5x4[s2]',
+            '[0]select=not(mod(n - 0\, 308.0)) * not(lt(n\, 0))[s0];[s0]scale=-1:270[s1];[s1]tile=4x4[s2]',
         '-map', [s2],
         '-frames:v', '1', 
         '-loglevel', 'error', 
@@ -422,7 +422,7 @@ def check_ffmpeg():
     try:
         out, _ = run_async(cmd)
         # \D matches non-digitals for cases like "ffmpeg version n5.0.1"
-        search = re.search(r'ffmpeg version \D*(\d.\d.\d?)', out, re.I)
+        search = re.search(r'ffmpeg version \D*(\d.\d(.\d)?)', out, re.I)
         if search:
             version = search.group(1)
             main_version = int(version.split('.')[0])
@@ -458,7 +458,7 @@ if __name__ == '__main__':
     parser.add_argument('-p', '--path',     type=str,   default=os.path.dirname(__file__),  help='Path of directory or file.')
     parser.add_argument('-s', '--seek',     type=float, default=0,                          help='Time of the first capture.')
     parser.add_argument('-g', '--height',   type=int,   default=270,                        help='Height of each image in the capture.')
-    parser.add_argument('-t', '--tile',     type=str,   default='5x5',                      help='Tile shaple of the screen shots.')
+    parser.add_argument('-t', '--tile',     type=str,   default='4x4',                      help='Tile shaple of the screen shots.')
     parser.add_argument('-o', '--overwrite',action='store_true',                            help='Whether or not overwrite existing files.')
     parser.add_argument('-i', '--timestamp',action='store_true',                            help='Whether or not show present timestamp on captures.')
     parser.add_argument('-f', '--format',   type=str,   default='png',                      help='Output format.')

@@ -24,7 +24,7 @@ The arguments below are used to specify the input and output behaviors.
 
 *-g / --height* (type: integer, default: 270): The height of each captured image (in pixels).
 
-*-t / --tile* (type: string, default value: "5x5"): Shape of the tile made up from the captured images with format "cxr" where c stands for columns and r stands for rows. "1x1" is not allowed.
+*-t / --tile* (type: string, default value: "4x4"): Shape of the tile made up from the captured images with format "cxr" where c stands for columns and r stands for rows. "1x1" is not allowed.
 
 *-s / --seek* (type: float, default: 0): Time of the first capture (in seconds).
 
@@ -58,17 +58,17 @@ On Windows, although both cmd.exe and powershell.exe can do the job, powershell 
 # -n 0.08   timestamp font size is 0.08 * min(width, height).
 # -g 270    The height of each image is 270 pixels (the ratio is remained the same as the source video).
 # -r 0.01   padding is to be set as 0.01 * min(width, height), where width and height are the width and heigth of a frame of image.
-# -t 5x4    The screenshot is made up of 20 captured images with 5 columns and 4 rows.
+# -t 4x4    The screenshot is made up of 16 captured images with 4 columns and 4 rows.
 # -o        Overwrite existing files with the same file name with the output files.
 # -f png    Output png format picture.
-path_to_python path_to_batchcap.py -p path -s 1 -i -c yellow -n 0.08 -g 270 -r 0.01 -t 5x4 -o -f png
+path_to_python path_to_batchcap.py -p path -s 1 -i -c yellow -n 0.08 -g 270 -r 0.01 -t 4x4 -o -f png
 ```
 
 #### Run with script
 
 To handle a batch of videos, especially those under a specific directory, running with the scripts under the scripts folder is recommended. The idea is:
 
-(1) Edit the script (run.ps1 under Windows and run.sh under Linux) to specify the script_dir.
+(1) Edit the script (run.ps1 under Windows and run.sh under Linux) to specify the `script_dir`;
 
 (2) Put the script file under the corresponding folder;
 
