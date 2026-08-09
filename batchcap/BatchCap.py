@@ -16,7 +16,7 @@ NL = '\n'
 MIN_FONTSIZE = 1
 MAX_FONTSIZE = 999
 MAX_LOG_LENGTH = 2048           # Maximum length of an entry of logging
-MEMORY_PARA = 10                # Coefficient to decide the capture method to call
+MEMORY_PARA = 4                 # Coefficient to decide the capture method to call
 MAX_COMMAND_LENGTH = 20000      # Maximum length of the command for the system to run
 REQUIRED_FILTERS = {
     "scale",
@@ -439,7 +439,7 @@ def capture_single(path:str, args) -> Iterable[tuple[str, CaptureResult]]:
         if not pths:
             LOGGER.warning(f'No files to be captured.')
             return
-        LOGGER.info(f'Number of files to be captured: {len(pths)}')
+        LOGGER.info(f'Files to be captured under {path}: {len(pths)}')
         for pth in tqdm(pths):
             yield capture_file(pth, args)
     elif os.path.isfile(path):
