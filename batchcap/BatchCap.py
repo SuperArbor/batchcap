@@ -5,7 +5,7 @@ import psutil
 import argparse
 from subprocess import Popen, PIPE
 from loguru import logger
-from Tree import *
+from .Tree import *
 from traceback import format_exc
 from tqdm import tqdm
 from datetime import datetime, timedelta
@@ -441,7 +441,7 @@ def check_ffmpeg():
         logger.exception('ffmpeg detection error')
         return False, 'uninstalled'
 
-if __name__ == '__main__':
+def main():
     valid, version = check_ffmpeg()
     if valid:
         logger.info(f'ffmpeg {version} available.')

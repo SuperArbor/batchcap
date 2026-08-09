@@ -6,12 +6,13 @@ A convenient batch capture tool for both Windows and Linux. Below is an example.
 
 ## Prerequisites
 
-FFmpeg 4 or higher version should be installed. As far as I know, FFmpeg 3 lacks some APIs, causing the tool to fail.
+FFmpeg 4 or higher version should be installed. As far as I know, FFmpeg 3 lacks some APIs, causing the tool to fail. You can download the latest build from https://github.com/GyanD/codexffmpeg/releases/latest.
 
-Install other third party dependencies with uv.
+## Install as tool with UV
 
-```powershell
-uv sync
+```pwsh
+cd BatchCap
+uv tool install -e .
 ```
 
 ## Usage
@@ -42,17 +43,11 @@ The arguments below are used to specify the input and output behaviors.
 
 *-v / --verbose* (store true): Verbose level for ffmpeg command output.
 
-### Run the tool
-
-You can choose to run the tool with command or with script. Usually when there is only one video to be captured, running with command is more handy, otherwise running with a script is more convenient.
-
 #### Run with command
 
-Run the following line in powershell (Windows) or bash (Linux).
+Run the following line.
 
-On Windows, although both cmd.exe and powershell.exe can do the job, powershell is more recommended. cmd.exe does not support UNC directory, which may make the tool fail if the files to be captured are on a remote device.
-
-```powershell
+```pwsh
 # -p path   Captures screenshot(s) of file named path (or the videos under the folder named path).
 # -s 1      The capture begins at second 1.0 in the video.
 # -i        Embed timestamp on the captures.
@@ -64,15 +59,15 @@ On Windows, although both cmd.exe and powershell.exe can do the job, powershell 
 # -o        Overwrite existing files with the same file name with the output files.
 # -f png    Output png format picture.
 # -v        Verbose level for ffmpeg command output.
-path_to_python path_to_batchcap.py -p path -s 1 -i -c yellow -n 0.08 -g 270 -r 0.01 -t 4x4 -o -f png
+batchcap -p <path_or_directory> -s 1 -i -c yellow -n 0.08 -g 270 -r 0.01 -t 4x4 -o -f png
 ```
 
 #### Run with script
 
 To handle a batch of videos, especially those under a specific directory, running with the scripts under the scripts folder is recommended. The idea is:
 
-(1) Edit the script (run.ps1 under Windows and run.sh under Linux) to specify the `script_dir`;
+(1) Put the script file under the folder of the videos;
 
-(2) Put the script file under the corresponding folder;
+(2) Edit the script file to specify the arguments;
 
 (3) Run the script.

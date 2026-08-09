@@ -1,28 +1,4 @@
 # ============================
-# Configuration
-# ============================
-
-# 只需要修改这里
-$script_dir = ""
-
-# ============================
-# Locate uv venv python
-# ============================
-
-$python = Join-Path $script_dir ".venv\Scripts\python.exe"
-$batchcap = Join-Path $script_dir "BatchCap.py"
-
-
-if (!(Test-Path $python)) {
-    throw "uv virtual environment python not found: $python"
-}
-
-if (!(Test-Path $batchcap)) {
-    throw "BatchCap.py not found: $batchcap"
-}
-
-
-# ============================
 # Sort Pipeline output
 # ============================
 
@@ -72,9 +48,7 @@ param(
     return $return
 }
 
-
 # Replace '\r\n' with '\n'
-
 function Replace {
 param(
     [Parameter(Mandatory=$true, ValueFromPipeline=$true)]
@@ -93,12 +67,11 @@ param(
     return $Meta0
 }
 
-
 # ============================
 # Run BatchCap
 # ============================
 
-& $python $batchcap `
+& batchcap `
     -p $PSScriptRoot `
     -s 1 `
     -i `
