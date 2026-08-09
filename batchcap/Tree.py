@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
-SEP='/'
+import os
+SEP=os.sep
 
 class NodeObject(ABC):
     '''Base class for NodeFile and NodeDir.'''
