@@ -452,13 +452,16 @@ def capture_file(file:str, args) -> tuple[str, CaptureResult]:
 
 def capture_multi(paths: list[str], args) -> Iterable[tuple[str, CaptureResult]]:
     """Capture multiple files in a directory or a list of files."""
-    targets = collect_target_files(paths, args)
+    targets, skpipped = collect_target_files(paths, args)
+    n_targets = len(targets)
+    n_skipped = len(skpipped)
 
-    if not targets:
-        LOGGER.warning("No files to be captured.")
-        return
-
-    LOGGER.info(f'Total files to capture: {len(targets)}')
+    LOGGER.info(f'Total files to capture: {n_targets}')
+    if n_targets > 0:
+        LOGGER.info(f'Target paths:{NL}' + NL.join(targets))
+    LOGGER.info(f'Total files skiiped: {n_skipped}')
+    if n_skipped > 0:
+        LOGGER.info(f'Skipped paths:{NL}' + NL.join(skpipped))
 
     for pth in tqdm(targets, desc="Capturing"):
         yield capture_file(pth, args)
@@ -470,29 +473,42 @@ def resolve_paths(patterns:list[str]) -> list[str]:
         paths.extend(matched if matched else [pat])
     return [os.path.abspath(p) for p in paths]
 
-def scan_dir(root: str, overwrite:bool, fmt:str='png') -> list[str]:
-    root = os.path.abspath(root)
-    out = []
-    for cur, _, files in os.walk(root):
-        for f in files:
-            if is_video(f):
-                full = os.path.join(cur, f)
-                if overwrite or not os.path.exists(get_output_name(full, fmt)):
-                    out.append(full)
-    return out
+def collect_target_files(
+        paths: list[str],
+        args
+    ) -> tuple[list[str], list[str]]:
+    """Collect target video files and skipped files."""
 
-def collect_target_files(paths: list[str], args) -> list[str]:
-    """Collect all the target files to be captured from the given paths."""
     targets = []
+    skipped = []
+
+    def process_file(path: str):
+        if not is_video(path):
+            return
+
+        path = os.path.abspath(path)
+        output = get_output_name(path, args.format)
+
+        if args.overwrite or not os.path.exists(output):
+            targets.append(path)
+        else:
+            skipped.append(path)
+
+    def process_path(path: str):
+        path = os.path.abspath(path)
+
+        if os.path.isdir(path):
+            for cur, _, files in os.walk(path):
+                for f in files:
+                    process_file(os.path.join(cur, f))
+
+        else:
+            process_file(path)
+
     for p in paths:
-        p = os.path.abspath(p)
-        if os.path.isdir(p):
-            targets.extend(scan_dir(p, args.overwrite, args.format))
-        elif is_video(p):
-            out = get_output_name(p, args.format)
-            if args.overwrite or not os.path.exists(out):
-                targets.append(p)
-    return targets
+        process_path(p)
+
+    return targets, skipped
 
 def is_video(name: str) -> bool:
     return os.path.splitext(name.lower())[1] in VIDEO_EXT
@@ -572,9 +588,8 @@ def main():
     args = parser.parse_args()
     LOGGER.info(f'Current arguments: {args}')
     
-    # transfer to list
-    paths = args.path or []
-    paths = resolve_paths([p for p in paths])
+    # convert to list
+    paths = resolve_paths(args.path)
     args.path = paths
     
     try:
