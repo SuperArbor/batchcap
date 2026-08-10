@@ -306,9 +306,8 @@ def capture_file_in_sequence(file:str, args, capture_info:dict) -> CaptureResult
                 if args.overwrite:
                     cmd.append('-y')
 
-                _, _, err = run_async(cmd, verbose=args.verbose)
-
-                if err:
+                retcode, _, err = run_async(cmd, verbose=args.verbose)
+                if retcode != 0:
                     LOGGER.warning(
                         f'Failed to capture frame {i} at '
                         f'{seek + i * interval:.3f}s.{NL}{suppress_log(err)}'
@@ -399,7 +398,7 @@ def capture_file_in_sequence(file:str, args, capture_info:dict) -> CaptureResult
         except Exception as e:
             raise e
         finally:
-            [os.remove(f) for f in tmp_files]
+            [os.remove(f) for f in tmp_files if os.path.exists(f)]
     except Exception:
         LOGGER.error(suppress_log(format_exc()))
         LOGGER.info(f'Failed to capture {file}.')
