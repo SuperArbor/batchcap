@@ -459,7 +459,7 @@ def capture_multi(paths: list[str], args) -> Iterable[tuple[str, CaptureResult]]
     LOGGER.info(f'Total files to capture: {n_targets}')
     if n_targets > 0:
         LOGGER.info(f'Target paths:{NL}' + NL.join(targets))
-    LOGGER.info(f'Total files skiiped: {n_skipped}')
+    LOGGER.info(f'Total files skipped: {n_skipped}')
     if n_skipped > 0:
         LOGGER.info(f'Skipped paths:{NL}' + NL.join(skpipped))
 
@@ -586,7 +586,7 @@ def main():
     
     # arguments
     args = parser.parse_args()
-    LOGGER.info(f'Current arguments: {args}')
+    LOGGER.info(f'Current arguments: {vars(args)}')
     
     # convert to list
     paths = resolve_paths(args.path)

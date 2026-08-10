@@ -14,7 +14,7 @@ class ConsoleColorFormatter(logging.Formatter):
     def format(self, record):
         if sys.stderr.isatty():
             prefix = self.COL.get(record.levelno, "")
-            record.msg = f"{prefix}{record.getMessage()}{self.RESET}\n"
+            record.msg = f" {prefix}{record.getMessage()}{self.RESET}\n"
         else:
-            record.msg = f"{record.getMessage()}\n"
+            record.msg = f" {record.getMessage()}\n"
         return super().format(record)
