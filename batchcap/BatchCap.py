@@ -282,31 +282,72 @@ def capture_file_in_sequence(file:str, args, capture_info:dict) -> CaptureResult
             c, r = capture_info['columns'], capture_info['rows']
             pad = capture_info['pad']
             fontsize = capture_info['fontsize']
-            
+
             tmp_files = []
             tmp_dir = tempfile.gettempdir()
+
             # Generating images
             for i in range(c * r):
                 captured = os.path.join(tmp_dir, f'{os.path.basename(output_name)}_{i}')
-                cmd = [FFMPEG, 
-                        '-ss', f'{seek + i*interval}', '-i', file, 
-                        '-filter_complex', f'[0:v:0]scale=-1:{args.height}[c]', 
-                        '-map', '[c]', 
-                        '-frames:v', '1', 
-                        '-loglevel', 'error', 
-                        '-f', 'image2', 
-                        captured]
+
+                cmd = [
+                    FFMPEG,
+                    '-ss', f'{seek + i * interval}',
+                    '-i', file,
+                    '-filter_complex', f'[0:v:0]scale=-1:{args.height}[c]',
+                    '-map', '[c]',
+                    '-frames:v', '1',
+                    '-loglevel', 'error',
+                    '-c:v', 'png',
+                    '-f', 'image2',
+                    captured
+                ]
+
                 if args.overwrite:
                     cmd.append('-y')
-                    
+
                 _, _, err = run_async(cmd, verbose=args.verbose)
+
                 if err:
-                    LOGGER.error(f'Error occured.{NL}{suppress_log(err)}')
+                    LOGGER.warning(
+                        f'Failed to capture frame {i} at '
+                        f'{seek + i * interval:.3f}s.{NL}{suppress_log(err)}'
+                    )
+
+                # FFmpeg may exit successfully without producing an output frame.
+                if not os.path.exists(captured):
+                    LOGGER.warning(
+                        f'No frame captured at {seek + i * interval:.3f}s, '
+                        f'using a transparent placeholder.'
+                    )
+
+                    # Generate a transparent RGBA PNG with the same dimensions.
+                    placeholder_cmd = [
+                        FFMPEG,
+                        '-f', 'lavfi',
+                        '-i', f'color=c=black@0.0:s={width}x{height}:r=1',
+                        '-frames:v', '1',
+                        '-vf', 'format=rgba',
+                        '-c:v', 'png',
+                        '-f', 'image2',
+                        captured,
+                    ]
+
+                    if args.overwrite:
+                        placeholder_cmd.append('-y')
+
+                    run_async(placeholder_cmd, verbose=args.verbose)
+
+                if not os.path.exists(captured):
+                    LOGGER.error(
+                        f'Failed to create placeholder image: {captured}'
+                    )
                     return CaptureResult.CAPTURE_ERROR_OCCURED
-                
+
                 tmp_files.append(captured)
+
         except Exception as e:
-            [os.remove(f) for f in tmp_files]
+            [os.remove(f) for f in tmp_files if os.path.exists(f)]
             raise e
         
         try:
@@ -390,7 +431,7 @@ def capture_file(file:str, args) -> tuple[str, CaptureResult]:
         c, r = int(c), int(r)
         interval = (duration - seek) / (c * r)
         size = info['size'] / (1024 * 1024)
-        width, height = info['width'] * args.height / info['height'], args.height
+        width, height = int(info['width'] * args.height / info['height']), int(args.height)
         pad = max(int(args.padratio * min(width, height)), 0)
         fontsize = min(max(int(args.fontratio * min(width, height)), MIN_FONTSIZE), MAX_FONTSIZE)
         
