@@ -595,7 +595,7 @@ def main():
     if FFPROBE:
         LOGGER.info(f'Using FFprobe: {FFPROBE}.')
     else:
-        LOGGER.error('FFprobe not found in PATH. Please install FFmpeg and add it to PATH.')
+        LOGGER.error('FFprobe not found in PATH. Please install FFprobe and add it to PATH.')
         sys.exit(1)
         
     valid, reason = check_ffmpeg_features(FFMPEG)
